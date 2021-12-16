@@ -1,0 +1,4 @@
+v0.1:
+    Functional Protocol: Download from NCBI Ids protein, nucleotides, pubchem
+    Functional Protocol: BLAST search (blastp, blastn, psiblast...)
+    Functional Protocol: Create local BLAST database downloading / from SetOfSequences
