@@ -196,7 +196,6 @@ class ProtChemBLAST(EMProtocol):
             if seqId != inSeq.getId():
                 newSequence = seqDic[seqId]['sequence'].replace('-', '')
                 isAmino = self.seqType.get() == 0
-                print('ISAmino: ', isAmino)
                 newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
                                   description=seqDic[seqId]['description'])
                 newSeq.evalue = Float(seqDic[seqId]['evalue'])
