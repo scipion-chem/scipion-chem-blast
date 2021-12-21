@@ -25,5 +25,5 @@
 # **************************************************************************
 
 
-from pyworkflow.tests import *
+from .test_blast import TestBLAST, TestNCBIDownload
 

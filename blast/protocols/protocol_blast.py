@@ -26,17 +26,19 @@
 
 from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import *
+from pyworkflow import BETA
 from blast import Plugin
 from pwem.objects import Sequence, SetOfSequences
 
 from ..constants import *
-from pwchem.utils import writeFasta, getSequenceFastaName
+from pwchem.utils import getSequenceFastaName
 
 PROTEIN, NUCLEOTIDE = 0, 1
 
 class ProtChemBLAST(EMProtocol):
     """Perform a BLAST search"""
     _label = 'BLAST search'
+    _devStatus = BETA
 
     def _defineParams(self, form):
         form.addSection(label='Input')
@@ -155,7 +157,9 @@ class ProtChemBLAST(EMProtocol):
             os.mkdir(outDir)
 
         inSeq = self.inputSequence.get()
-        inFasta = os.path.abspath(writeFasta(inSeq, outDir=self._getExtraPath()))
+        inFasta = os.path.abspath(self._getExtraPath(getSequenceFastaName(inSeq)))
+        inSeq.exportToFile(inFasta)
+
         outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
 
         args = '-query {} -db {} -max_target_seqs {} -out {} -outfmt 4'.\
@@ -193,7 +197,7 @@ class ProtChemBLAST(EMProtocol):
         outSeqs.append(inSeq)
         #Adding target sequences
         for seqId in seqDic:
-            if seqId != inSeq.getId():
+            if seqId != getSequenceFastaName(inSeq):
                 newSequence = seqDic[seqId]['sequence'].replace('-', '')
                 isAmino = self.seqType.get() == 0
                 newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,

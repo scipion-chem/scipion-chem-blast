@@ -28,13 +28,14 @@ import os
 
 from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import PointerParam, BooleanParam, StringParam, EnumParam
+from pyworkflow import BETA
 from blast import Plugin
 from ..constants import BLASTdbs
-from pwchem.utils import writeCombinedFasta
 
 class ProtChemBLASTDatabase(EMProtocol):
     """Creates a BLAST database locally from a set of sequences or downloading from ncbi databases"""
     _label = 'Local BLAST database'
+    _devStatus = BETA
 
     def __init__(self, **kwargs):
         EMProtocol.__init__(self, **kwargs)
@@ -81,8 +82,9 @@ class ProtChemBLASTDatabase(EMProtocol):
 
     def createDatabaseStep(self):
         inSeqs = self.inputSequences.get()
+        inFasta = self._getPath('database.fasta')
 
-        inFasta = writeCombinedFasta(inSeqs, outPath=self._getPath('database.fasta'))
+        inSeqs.exportToFile(seqFileName=inFasta)
         dbClass = 'prot' if self.dbType.get() == 0 else 'nucl'
         outDir = Plugin.getDatabasesDir()
 
