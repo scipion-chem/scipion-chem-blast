@@ -51,8 +51,9 @@ class TestBLAST(TestNCBIDownload):
   dbName = '16S_ribosomal_RNA'
   @classmethod
   def _createLocalDatabase(cls):
+      dbIndex = cls.getDatabaseIndex(cls.dbName)
       protDB = cls.newProtocol(ProtChemBLASTDatabase,
-                                fromNCBI=True, inputID=cls.dbName)
+                                fromNCBI=True, inputID=dbIndex)
       cls.launchProtocol(protDB)
       return protDB
 

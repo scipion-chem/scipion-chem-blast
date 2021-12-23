@@ -45,11 +45,11 @@ class ProtChemBLASTDatabase(EMProtocol):
         form.addParam('fromNCBI', BooleanParam, default=False,
                       label='Create from a NCBI database: ')
 
-        form.addParam('inputID', StringParam,
+        form.addParam('inputID', EnumParam, choices=BLASTdbs,
                       label='NCBI database name:', condition='fromNCBI',
-                      help="NCBI database name to download. Options at 12/2021:\n{}\n\n"
+                      help="NCBI database name to download. Options at 12/2021.\n"
                            "To get the current list use: {}".
-                      format(BLASTdbs, os.path.join(Plugin._pluginHome, 'bin/update_blastdb.pl') + ' --showall'))
+                      format(os.path.join(Plugin._pluginHome, 'bin/update_blastdb.pl') + ' --showall'))
 
         group = form.addGroup('Input Sequences', condition='not fromNCBI')
         group.addParam('inputSequences', PointerParam, pointerClass='SetOfSequences',
@@ -71,7 +71,7 @@ class ProtChemBLASTDatabase(EMProtocol):
             self._insertFunctionStep('createDatabaseStep')
 
     def downloadDatabaseStep(self):
-        dbName = self.inputID.get()
+        dbName = self.getEnumText('inputID')
         args = ' --decompress {} -passive'.format(dbName)
         outDir = Plugin.getDatabasesDir()
         if not os.path.exists(outDir):
