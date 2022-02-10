@@ -29,13 +29,16 @@ import os
 from pwem.protocols import EMProtocol
 from pwem.objects import Sequence, SetOfSequences
 from pwchem.objects import SmallMolecule, SetOfSmallMolecules
-from pyworkflow.protocol.params import PointerParam, BooleanParam, StringParam, EnumParam, FileParam, STEPS_PARALLEL
+from pyworkflow.protocol.params import PointerParam, StringParam, EnumParam, FileParam, STEPS_PARALLEL
+from pyworkflow import BETA
 from blast import Plugin
-from pwchem.utils import guessIsAminoacids, parseFasta
+
+ID, SET, FILE = 0, 1, 2
 
 class ProtChemNCBIDownload(EMProtocol):
     """Download the Fasta file(s) from NCBI databases"""
     _label = 'NCBI download'
+    _devStatus = BETA
 
     def __init__(self, **kwargs):
         EMProtocol.__init__(self, **kwargs)
@@ -43,14 +46,19 @@ class ProtChemNCBIDownload(EMProtocol):
 
     def _defineParams(self, form):
         form.addSection(label='Input')
-        form.addParam('fromSet', BooleanParam, default=False,
+        form.addParam('source', EnumParam, default=0,
+                      choices=['ID', 'SetOfIDs', 'File'],
                       label='Input from a set of databaseIds: ')
-        form.addParam('inputIDSet', FileParam,
-                       label='List of NCBI Ids:', condition='fromSet',
-                       help="List of NCBI IDs for the query")
+
         form.addParam('inputID', StringParam,
-                      label='NCBI Id:', allowsNull=False, condition='not fromSet',
+                      label='NCBI ID: ', condition='source==0',
                       help="NCBI ID for the query")
+        form.addParam('inputIDSet', PointerParam, pointerClass='SetOfDatabaseID',
+                      label='NCBI ID set: ', condition='source==1',
+                      help="NCBI ID Set for the query")
+        form.addParam('inputFile', FileParam,
+                      label='List of NCBI Ids: ', condition='source==2',
+                      help="List of NCBI IDs for the query")
 
         form.addParam('dbType', EnumParam, default=0,
                       choices=['Protein', 'Nucleotide', 'SmallMolecule'], display=EnumParam.DISPLAY_HLIST,
@@ -60,18 +68,13 @@ class ProtChemNCBIDownload(EMProtocol):
     # --------------------------- INSERT steps functions --------------------
     def _insertAllSteps(self):
         searchIds = []
-        if self.fromSet:
-            inputIds = self.getInputIds()
-            for ncbiID in inputIds:
-                if self.dbType.get() != 2:
-                    searchIds.append(self._insertFunctionStep('searchSequenceStep', ncbiID, prerequisites=[]))
-                else:
-                    searchIds.append(self._insertFunctionStep('searchCompoundStep', ncbiID, prerequisites=[]))
-        else:
+        inputIds = self.getInputIds()
+
+        for ncbiID in inputIds:
             if self.dbType.get() != 2:
-                searchIds.append(self._insertFunctionStep('searchSequenceStep', self.inputID.get(), prerequisites=[]))
+                searchIds.append(self._insertFunctionStep('searchSequenceStep', ncbiID, prerequisites=[]))
             else:
-                searchIds.append(self._insertFunctionStep('searchCompoundStep', self.inputID.get(), prerequisites=[]))
+                searchIds.append(self._insertFunctionStep('searchCompoundStep', ncbiID, prerequisites=[]))
 
         self._insertFunctionStep('createOutputStep', prerequisites=searchIds)
 
@@ -103,29 +106,21 @@ class ProtChemNCBIDownload(EMProtocol):
 
     def createOutputStep(self):
         if self.dbType.get() != 2:
-            if self.fromSet:
+            if self.source.get() != ID:
                 outputSet = SetOfSequences.create(self._getPath())
                 outDir = self._getPath('sequences')
-                fastaDic = {}
                 for outFile in os.listdir(outDir):
-                    fastaDic.update(parseFasta(os.path.join(outDir, outFile)))
-
-                for seqId in fastaDic:
-                    isAmino = guessIsAminoacids(fastaDic[seqId]['sequence'])
-                    newSeq = Sequence(name=fastaDic[seqId]['name'], sequence=fastaDic[seqId]['sequence'],
-                                      id=seqId, isAminoacids=isAmino)
+                    newSeq, outFile = Sequence(), os.path.abspath(os.path.join(outDir, outFile))
+                    newSeq.importFromFile(outFile, isAmino=self.dbType.get() == 0)
                     outputSet.append(newSeq)
                 self._defineOutputs(outputSequences=outputSet)
             else:
                 outDir = self._getPath('sequences')
                 for outFile in os.listdir(outDir):
                     #There should be just one
-                    fastaDic = parseFasta(os.path.join(outDir, outFile), combined=False)
-                    for seqId in fastaDic:
-                        isAmino = guessIsAminoacids(fastaDic[seqId]['sequence'])
-                        newSeq = Sequence(name=fastaDic[seqId]['name'], sequence=fastaDic[seqId]['sequence'],
-                                          id=seqId, isAminoacids=isAmino)
-                        self._defineOutputs(outputSequence=newSeq)
+                    newSeq, outFile = Sequence(), os.path.abspath(os.path.join(outDir, outFile))
+                    newSeq.importFromFile(outFile, isAmino=self.dbType.get() == 0)
+                    self._defineOutputs(outputSequence=newSeq)
 
         else:
             outputSet = SetOfSmallMolecules(filename=self._getPath('outputSmallMolecules.sqlite'))
@@ -180,7 +175,16 @@ class ProtChemNCBIDownload(EMProtocol):
 
     def getInputIds(self):
         ids = []
-        with open(self.inputIDSet.get()) as fIn:
-            for line in fIn:
-                ids.append(line.strip())
+        if self.source.get() == ID:
+            ids.append(self.inputID.get())
+
+        elif self.source.get() == SET:
+            for dbID in self.inputIDSet.get():
+                ids.append(dbID.getDbId())
+
+        elif self.source.get() == FILE:
+            with open(self.inputFile.get()) as fIn:
+                for line in fIn:
+                    ids.append(line.strip())
+
         return ids
