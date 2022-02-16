@@ -63,7 +63,7 @@ class ProtChemBLAST(EMProtocol):
                       label='Nucleotide database to query on: ',
                       help='Nucleotide database to search on')
 
-        group.addParam('dbName', EnumParam, default=0,
+        group.addParam('dbName', EnumParam,
                        choices=Plugin.getLocalDatabases(),
                        label='Local database name: ', condition='localSearch',
                        help='Choose a database from those downloaded in {}'.format(Plugin.getDatabasesDir()))

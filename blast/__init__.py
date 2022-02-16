@@ -76,7 +76,6 @@ class Plugin(pwem.Plugin):
     def getEnviron(cls):
         pass
 
-
     @classmethod
     def addBLASTPackage(cls, env):
         installationCmd = 'wget %s -O %s && ' % (cls._getBLASTDownloadUrl(), cls._getBLASTTar())
@@ -85,7 +84,7 @@ class Plugin(pwem.Plugin):
 
         #Edirect
         installationCmd += 'sh -c "$(curl -fsSL {})" && '.format(cls._getEDirectDownloadUrl())
-        installationCmd += 'mv ~/edirect ./ && '
+        installationCmd += 'mv ~/edirect ./ && mkdir databases && '
 
         # Creating validation file
         BLAST_INSTALLED = '%s_installed' % BLAST
@@ -121,6 +120,8 @@ class Plugin(pwem.Plugin):
         for file in os.listdir(cls.getDatabasesDir()):
             databases.add(file.split('.')[0])
         databases = list(databases)
+        if databases == []:
+            databases = ['None found']
         databases.sort()
         return databases
 
