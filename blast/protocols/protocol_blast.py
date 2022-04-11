@@ -63,7 +63,7 @@ class ProtChemBLAST(EMProtocol):
                       label='Nucleotide database to query on: ',
                       help='Nucleotide database to search on')
 
-        group.addParam('dbName', EnumParam, default=0,
+        group.addParam('dbName', EnumParam,
                        choices=Plugin.getLocalDatabases(),
                        label='Local database name: ', condition='localSearch',
                        help='Choose a database from those downloaded in {}'.format(Plugin.getDatabasesDir()))
@@ -157,7 +157,7 @@ class ProtChemBLAST(EMProtocol):
             os.mkdir(outDir)
 
         inSeq = self.inputSequence.get()
-        inFasta = os.path.abspath(self._getExtraPath(getSequenceFastaName(inSeq)))
+        inFasta = os.path.abspath(self._getExtraPath(getSequenceFastaName(inSeq) + '.fasta'))
         inSeq.exportToFile(inFasta)
 
         outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
@@ -188,24 +188,23 @@ class ProtChemBLAST(EMProtocol):
     def createOutputStep(self):
         seqDic = self.parseBLASTOutput()
         outSeqs = SetOfSequences.create(self._getPath())
-
-        #Adding input sequence
         inSeq = self.inputSequence.get()
-        inSeq.evalue = Float(0.0)
-        inSeq.score = Float(0.0)
-        inSeq.firstPosition = Integer(1)
-        outSeqs.append(inSeq)
+
         #Adding target sequences
         for seqId in seqDic:
-            if seqId != getSequenceFastaName(inSeq):
-                newSequence = seqDic[seqId]['sequence'].replace('-', '')
+            if seqId != 'Query_1':
+                newSequence = seqDic[seqId]['sequence']
                 isAmino = self.seqType.get() == 0
                 newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
                                   description=seqDic[seqId]['description'])
                 newSeq.evalue = Float(seqDic[seqId]['evalue'])
                 newSeq.score = Float(seqDic[seqId]['score'])
-                newSeq.firstPosition = Integer((seqDic[seqId]['firstPosition']))
                 outSeqs.append(newSeq)
+            else:
+                inSeq.setSequence(seqDic[seqId]['sequence'])
+                inSeq.evalue = Float(0.0)
+                inSeq.score = Float(0.0)
+                outSeqs.append(inSeq)
 
         self._defineOutputs(outputSequences=outSeqs)
 
@@ -335,7 +334,7 @@ class ProtChemBLAST(EMProtocol):
 
         inSeq = self.inputSequence.get()
         outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
-        seqDic, read = {}, 0
+        seqDic, read = {'Query_1': {'sequence': '', 'firstPosition': 1}}, 0
         with open(outFile) as fIn:
             for line in fIn:
                 if read == 0 and line.startswith('Sequences producing significant alignments'):
@@ -354,10 +353,10 @@ class ProtChemBLAST(EMProtocol):
 
                 if read == 2:
                     if line.strip() != '':
-                        line = line.strip().split()
-                        if line[0] in seqDic:
-                            seqDic[line[0]]['sequence'] += line[2]
-                            seqDic[line[0]]['firstPosition'] = line[1]
+                        sline = line.strip().split()
+                        if sline[0] in seqDic:
+                            seqDic[sline[0]]['sequence'] += line[15:75].replace(' ', '-')
+                            seqDic[sline[0]]['firstPosition'] = sline[1]
                     else:
                         line, read = goToNextLine(fIn, read)
 
