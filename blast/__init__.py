@@ -100,7 +100,7 @@ class Plugin(pwem.Plugin):
     # ---------------------------------- Utils functions  -----------------------
     @classmethod
     def _getBLASTDownloadUrl(cls):
-        return "https://ftp.ncbi.nlm.nih.gov/blast/executables/LATEST/ncbi-blast-2.12.0+-x64-linux.tar.gz"
+        return "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.12.0/ncbi-blast-2.12.0+-x64-linux.tar.gz"
 
     @classmethod
     def _getEDirectDownloadUrl(cls):
