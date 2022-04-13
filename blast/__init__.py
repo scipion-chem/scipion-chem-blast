@@ -85,7 +85,7 @@ class Plugin(pwem.Plugin):
         installationCmd += 'mkdir %s && ' % join(pwem.Config.EM_ROOT, BLAST + '-' + BLAST_DEFAULT_VERSION, 'databases')
 
         #Edirect
-        installationCmd += 'printf "N\n" | sh -c "$(wget -q {} -O -)" && '.format(cls._getEDirectDownloadUrl())
+        installationCmd += 'printf "N\\n" | sh -c "$(wget -q {} -O -)" && '.format(cls._getEDirectDownloadUrl())
         installationCmd += 'mv ~/edirect ./ && '
 
         # Creating validation file
