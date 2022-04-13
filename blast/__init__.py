@@ -82,6 +82,7 @@ class Plugin(pwem.Plugin):
         installationCmd = 'wget %s -O %s && ' % (cls._getBLASTDownloadUrl(), cls._getBLASTTar())
         installationCmd += 'tar -xf %s --strip-components 1 && ' % cls._getBLASTTar()
         installationCmd += 'rm %s && ' % cls._getBLASTTar()
+        installationCmd += 'mkdir %s && ' % join(pwem.Config.EM_ROOT, BLAST + '-' + BLAST_DEFAULT_VERSION, 'databases')
 
         #Edirect
         installationCmd += 'sh -c "$(curl -fsSL {})" && '.format(cls._getEDirectDownloadUrl())
