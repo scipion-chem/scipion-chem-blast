@@ -94,6 +94,7 @@ class Plugin(pwem.Plugin):
         env.addPackage(BLAST,
                        version=BLAST_DEFAULT_VERSION,
                        tar='void.tgz',
+                       neededProgs=["curl"],
                        commands=[(installationCmd, BLAST_INSTALLED)],
                        default=True)
 
