@@ -47,7 +47,7 @@ class ProtChemBLAST(EMProtocol):
                       label='Input Sequence: ', allowsNull=False,
                       help="Sequence to be used as query")
 
-        group.addParam('seqType', EnumParam, default=0,
+        group.addParam('seqType', EnumParam, default=1,
                       choices=['Protein', 'Nucleotide'], display=EnumParam.DISPLAY_HLIST,
                       label='Type of sequence: ')
 
@@ -218,6 +218,9 @@ class ProtChemBLAST(EMProtocol):
                     float(getattr(self, attr).get())
             except:
                 errors.append('{} should be a number or empty'.format(attr))
+
+        if self.seqType.get() == 0 and int(self.word_size.get()) >= 8:
+            errors.append('Word size must be < 8 when using blastp. Check the specified parameters.')
 
         return errors
 
