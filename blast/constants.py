@@ -25,9 +25,6 @@
 # **************************************************************************
 
 
-# Supported Versions
-BLAST_DEFAULT_VERSION = '2.12.0'
-BLAST, BLAST_HOME = 'blast', 'BLAST_HOME'
 
 #BLAST PROTOCOL
 MATCH, MATRIX, NOGAP = 0, 1, 2

@@ -29,7 +29,7 @@ import os
 from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import PointerParam, BooleanParam, StringParam, EnumParam
 from pyworkflow import BETA
-from blast import Plugin
+from blast import Plugin, BLAST_DIC
 from ..constants import BLASTdbs
 
 class ProtChemBLASTDatabase(EMProtocol):
@@ -49,7 +49,7 @@ class ProtChemBLASTDatabase(EMProtocol):
                       label='NCBI database name:', condition='fromNCBI',
                       help="NCBI database name to download. Options at 12/2021.\n"
                            "To get the current list use: {}".
-                      format(os.path.join(Plugin._pluginHome, 'bin/update_blastdb.pl') + ' --showall'))
+                      format(os.path.join(Plugin.getVar(BLAST_DIC['home']), 'bin/update_blastdb.pl') + ' --showall'))
 
         group = form.addGroup('Input Sequences', condition='not fromNCBI')
         group.addParam('inputSequences', PointerParam, pointerClass='SetOfSequences',
