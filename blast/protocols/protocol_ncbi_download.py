@@ -29,11 +29,11 @@ import os
 from pwem.protocols import EMProtocol
 from pwem.objects import Sequence, SetOfSequences
 from pwchem.objects import SmallMolecule, SetOfSmallMolecules
-from pyworkflow.protocol.params import PointerParam, StringParam, EnumParam, FileParam, STEPS_PARALLEL
+from pyworkflow.protocol.params import TextParam, StringParam, EnumParam, FileParam, STEPS_PARALLEL
 from pyworkflow import BETA
 from blast import Plugin
 
-ID, SET, FILE = 0, 1, 2
+IDS, FILE = 0, 1
 
 class ProtChemNCBIDownload(EMProtocol):
     """Download the Fasta file(s) from NCBI databases"""
@@ -47,15 +47,16 @@ class ProtChemNCBIDownload(EMProtocol):
     def _defineParams(self, form):
         form.addSection(label='Input')
         form.addParam('source', EnumParam, default=0,
-                      choices=['ID', 'SetOfIDs', 'File'],
-                      label='Input from a set of databaseIds: ')
+                      choices=['IDs', 'File'],
+                      label='Input IDs: ')
 
         form.addParam('inputID', StringParam,
                       label='NCBI ID: ', condition='source==0',
                       help="NCBI ID for the query")
-        form.addParam('inputIDSet', PointerParam, pointerClass='SetOfDatabaseID',
-                      label='NCBI ID set: ', condition='source==1',
-                      help="NCBI ID Set for the query")
+        form.addParam('listIDs', TextParam, width=120,
+                       label='List of IDs',
+                       help='List of IDs to be searched')
+
         form.addParam('inputFile', FileParam,
                       label='List of NCBI Ids: ', condition='source==2',
                       help="List of NCBI IDs for the query")
@@ -127,6 +128,7 @@ class ProtChemNCBIDownload(EMProtocol):
             outDir = self._getPath('compounds')
             for outFile in os.listdir(outDir):
                 outMol = SmallMolecule(smallMolFilename=os.path.join(outDir, outFile))
+                outMol.setMolName(os.path.splitext(os.path.basename(outFile))[0])
                 outputSet.append(outMol)
 
             self._defineOutputs(outputSmallMolecules=outputSet)
@@ -175,12 +177,13 @@ class ProtChemNCBIDownload(EMProtocol):
 
     def getInputIds(self):
         ids = []
-        if self.source.get() == ID:
-            ids.append(self.inputID.get())
-
-        elif self.source.get() == SET:
-            for dbID in self.inputIDSet.get():
-                ids.append(dbID.getDbId())
+        if self.source.get() == IDS:
+            listIDs = self.listIDs.get().strip()
+            if not listIDs:
+                ids.append(self.inputID.get().strip())
+            else:
+                for line in listIDs.split('\n'):
+                    ids.append(line.strip())
 
         elif self.source.get() == FILE:
             with open(self.inputFile.get()) as fIn:

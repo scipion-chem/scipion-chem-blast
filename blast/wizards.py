@@ -31,7 +31,8 @@ Wizard to show default values for a blast configuration
 
 # Imports
 from pwem.wizards.wizard import EmWizard
-from .protocols import ProtChemBLAST
+from pwchem.wizards import AddElementWizard
+from .protocols import ProtChemBLAST, ProtChemNCBIDownload
 from .constants import DEF_BLAST_PARAMS
 
 class SetDefaultBLASTParameters(EmWizard):
@@ -45,5 +46,9 @@ class SetDefaultBLASTParameters(EmWizard):
         for attr in DEF_BLAST_PARAMS[blatsProgram]:
             form.setVar(attr, DEF_BLAST_PARAMS[blatsProgram][attr])
 
+AddElementWizard().addTarget(protocol=ProtChemNCBIDownload,
+                             targets=['inputID'],
+                             inputs=['inputID'],
+                             outputs=['listIDs'])
 
 
