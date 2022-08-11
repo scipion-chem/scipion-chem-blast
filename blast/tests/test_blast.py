@@ -25,6 +25,7 @@
 from pyworkflow.tests import BaseTest
 import pyworkflow.tests as tests
 from blast import Plugin
+from blast.constants import *
 
 from ..protocols import ProtChemBLAST, ProtChemBLASTDatabase, ProtChemNCBIDownload
 
@@ -51,22 +52,27 @@ class TestBLAST(TestNCBIDownload):
   dbName = '16S_ribosomal_RNA'
   @classmethod
   def _createLocalDatabase(cls):
-      dbIndex = cls.getDatabaseIndex(cls.dbName)
+      dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=True)
+      print('dbName: ', cls.dbName, dbIndex)
       protDB = cls.newProtocol(ProtChemBLASTDatabase,
                                 fromNCBI=True, inputID=dbIndex)
       cls.launchProtocol(protDB)
       return protDB
 
   @classmethod
-  def getDatabaseIndex(cls, dbName):
-    options = Plugin.getLocalDatabases()
+  def getDatabaseIndex(cls, dbName, fromNCBI=False):
+    if not fromNCBI:
+        options = Plugin.getLocalDatabases()
+    else:
+        options = BLASTdbs
     for i, name in enumerate(options):
         if dbName == name:
           return i
 
+
   @classmethod
   def _runBLASTn(cls, sequence):
-      dbIndex = cls.getDatabaseIndex(cls.dbName)
+      dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=False)
       protBLAST = cls.newProtocol(
         ProtChemBLAST,
         inputSequence=sequence, seqType=1, localSearch=True, dbName=dbIndex,

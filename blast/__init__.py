@@ -33,18 +33,18 @@ _version_ = '0.1'
 _logo = "blast_logo.png"
 _references = ['']
 
-class Plugin(pwem.Plugin):
-    _homeVar = BLAST_HOME
-    _pathVars = [BLAST_HOME]
-    _supportedVersions = [BLAST_DEFAULT_VERSION]
+BLAST_DIC = {'name': 'blast', 'version': '2.12.0', 'home': 'BLAST_HOME'}
 
-    _pluginHome = join(pwem.Config.EM_ROOT, BLAST + '-' + BLAST_DEFAULT_VERSION)
+class Plugin(pwem.Plugin):
+    _homeVar = BLAST_DIC['home']
+    _pathVars = [BLAST_DIC['home']]
+    _supportedVersions = [BLAST_DIC['version']]
 
     @classmethod
     def _defineVariables(cls):
         """ Return and write a variable in the config file.
         """
-        cls._defineEmVar(BLAST_HOME, BLAST + '-' + BLAST_DEFAULT_VERSION)
+        cls._defineEmVar(BLAST_DIC['home'], BLAST_DIC['name'] + '-' + BLAST_DIC['version'])
 
     @classmethod
     def defineBinaries(cls, env):
@@ -53,7 +53,7 @@ class Plugin(pwem.Plugin):
     @classmethod
     def runBLAST(cls, protocol, program, args, cwd=None):
         """ Run BLAST program commands from a given protocol. """
-        protocol.runJob(join(cls._pluginHome, 'bin', program), args, cwd=cwd)
+        protocol.runJob(join(cls.getVar(BLAST_DIC['home']), 'bin', program), args, cwd=cwd)
 
     @classmethod
     def runEDirect(cls, protocol, fullCMD, cwd):
@@ -63,14 +63,14 @@ class Plugin(pwem.Plugin):
 
     @classmethod
     def getEDirectProgram(cls, program):
-        return join(cls._pluginHome, 'edirect', program)
+        return join(cls.getVar(BLAST_DIC['home']), 'edirect', program)
 
     @classmethod
     def updateDatabase(cls, protocol, args, cwd=None):
         '''Upload a local BLAST database using the perl script'''
         if cwd is None:
             cwd = cls.getDatabasesDir()
-        protocol.runJob('perl ' + join(cls._pluginHome, 'bin/update_blastdb.pl'), args, cwd=cwd)
+        protocol.runJob('perl ' + join(cls.getVar(BLAST_DIC['home']), 'bin/update_blastdb.pl'), args, cwd=cwd)
 
     @classmethod  #  Test that
     def getEnviron(cls):
@@ -81,17 +81,20 @@ class Plugin(pwem.Plugin):
         installationCmd = 'wget %s -O %s && ' % (cls._getBLASTDownloadUrl(), cls._getBLASTTar())
         installationCmd += 'tar -xf %s --strip-components 1 && ' % cls._getBLASTTar()
         installationCmd += 'rm %s && ' % cls._getBLASTTar()
+        installationCmd += 'mkdir %s && ' % \
+                           join(pwem.Config.EM_ROOT, BLAST_DIC['name'] + '-' + BLAST_DIC['version'], 'databases')
 
         #Edirect
-        installationCmd += 'sh -c "$(curl -fsSL {})" && '.format(cls._getEDirectDownloadUrl())
-        installationCmd += 'mv ~/edirect ./ && mkdir databases && '
+        installationCmd += 'printf "N\\n" | sh -c "$(wget -q {} -O -)" && '.format(cls._getEDirectDownloadUrl())
+        installationCmd += 'mv ~/edirect ./ && '
+
 
         # Creating validation file
-        BLAST_INSTALLED = '%s_installed' % BLAST
+        BLAST_INSTALLED = '%s_installed' % BLAST_DIC['name']
         installationCmd += 'touch %s' % BLAST_INSTALLED  # Flag installation finished
 
-        env.addPackage(BLAST,
-                       version=BLAST_DEFAULT_VERSION,
+        env.addPackage(BLAST_DIC['name'],
+                       version=BLAST_DIC['version'],
                        tar='void.tgz',
                        commands=[(installationCmd, BLAST_INSTALLED)],
                        default=True)
@@ -99,7 +102,8 @@ class Plugin(pwem.Plugin):
     # ---------------------------------- Utils functions  -----------------------
     @classmethod
     def _getBLASTDownloadUrl(cls):
-        return "https://ftp.ncbi.nlm.nih.gov/blast/executables/LATEST/ncbi-blast-2.12.0+-x64-linux.tar.gz"
+        return "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.12.0/ncbi-blast-{}+-x64-linux.tar.gz".\
+            format(BLAST_DIC['version'])
 
     @classmethod
     def _getEDirectDownloadUrl(cls):
@@ -107,12 +111,12 @@ class Plugin(pwem.Plugin):
 
     @classmethod
     def _getBLASTTar(cls):
-        pluginHome = join(pwem.Config.EM_ROOT, BLAST + '-' + BLAST_DEFAULT_VERSION)
-        return pluginHome + '/' + BLAST + '-' + BLAST_DEFAULT_VERSION + '.tar.gz'
+        pluginHome = join(pwem.Config.EM_ROOT, BLAST_DIC['name'] + '-' + BLAST_DIC['version'])
+        return pluginHome + '/' + BLAST_DIC['name'] + '-' + BLAST_DIC['version'] + '.tar.gz'
 
     @classmethod
     def getDatabasesDir(cls):
-        return os.path.abspath(os.path.join(cls._pluginHome, 'databases'))
+        return os.path.abspath(os.path.join(cls.getVar(BLAST_DIC['home']), 'databases'))
 
     @classmethod
     def getLocalDatabases(cls):
