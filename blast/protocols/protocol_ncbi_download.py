@@ -24,16 +24,16 @@
 # *
 # **************************************************************************
 
-import os
+import os, json
+from Bio import Entrez
 
 from pwem.protocols import EMProtocol
 from pwem.objects import Sequence, SetOfSequences
 from pwchem.objects import SmallMolecule, SetOfSmallMolecules
-from pyworkflow.protocol.params import TextParam, StringParam, EnumParam, FileParam, STEPS_PARALLEL
+from pyworkflow.protocol.params import TextParam, StringParam, EnumParam, STEPS_PARALLEL, IntParam, LabelParam
 from pyworkflow import BETA
-from blast import Plugin
 
-IDS, FILE = 0, 1
+IDS, KEYS = 0, 1
 
 class ProtChemNCBIDownload(EMProtocol):
     """Download the Fasta file(s) from NCBI databases"""
@@ -46,82 +46,61 @@ class ProtChemNCBIDownload(EMProtocol):
 
     def _defineParams(self, form):
         form.addSection(label='Input')
-        form.addParam('source', EnumParam, default=0,
-                      choices=['IDs', 'File'],
-                      label='Input IDs: ')
+        group = form.addGroup('Input type')
+        group.addParam('searchMode', EnumParam, default=0, choices=['ID', 'Keyword'], label='Search mode: ',
+                      help='Whether to fecth the NCBI entry for an specific ID or to use esearch to find entries '
+                           'for a specific keyword')
 
-        form.addParam('inputID', StringParam,
-                      label='NCBI ID: ', condition='source==0',
-                      help="NCBI ID for the query")
-        form.addParam('listIDs', TextParam, width=120,
-                       label='List of IDs',
-                       help='List of IDs to be searched')
+        group.addParam('dbType', EnumParam, default=0, choices=['Protein', 'Nucleotide', 'PCCompound'],
+                       display=EnumParam.DISPLAY_HLIST, label='Type of database to query on: ',
+                       help='Type of data to download from NCBI databases. Compounds are fetched from PubChem.')
 
-        form.addParam('inputFile', FileParam,
-                      label='List of NCBI Ids: ', condition='source==2',
-                      help="List of NCBI IDs for the query")
+        group = form.addGroup('Input listing')
+        group.addParam('inputID', StringParam, label='NCBI ID / keyword: ', help="NCBI ID / keyword for the query")
+        group.addParam('maxEntries', IntParam, label='Maximum number of entries: ', condition="searchMode==1",
+                       default=5, help="maximum number of entries to take into account in the search")
+        group.addParam('addEntry', LabelParam, label='Add ID / keyword: ', help='Add ID / keyword to the list')
 
-        form.addParam('dbType', EnumParam, default=0,
-                      choices=['Protein', 'Nucleotide', 'SmallMolecule'], display=EnumParam.DISPLAY_HLIST,
-                      label='Type of database to query on: ')
+        group.addParam('listIDs', TextParam, width=120, label='List of IDs / keywords:',
+                       help='List of IDs /keywords to be searched in NCBI databases')
+
         form.addParallelSection(threads=4, mpi=1)
 
     # --------------------------- INSERT steps functions --------------------
     def _insertAllSteps(self):
         searchIds = []
         inputIds = self.getInputIds()
+        handle = Entrez.esearch(db='pccompound', term='2244', retmax=1)
 
-        for ncbiID in inputIds:
-            if self.dbType.get() != 2:
-                searchIds.append(self._insertFunctionStep('searchSequenceStep', ncbiID, prerequisites=[]))
-            else:
-                searchIds.append(self._insertFunctionStep('searchCompoundStep', ncbiID, prerequisites=[]))
+        for key in inputIds:
+            searchIds.append(self._insertFunctionStep('searchStep', key, inputIds[key], prerequisites=[]))
 
         self._insertFunctionStep('createOutputStep', prerequisites=searchIds)
 
-    def searchSequenceStep(self, ncbiID):
+    def searchStep(self, key, maxEntries):
         dbName = self.getEnumText('dbType').lower()
-        outDir = self._getPath('sequences')
-        if not os.path.exists(outDir):
-            os.mkdir(outDir)
 
-        outFasta = os.path.abspath(('{}.fasta'.format(os.path.join(outDir, ncbiID))))
-        fullCMD = '{} -db {} -id {} -format fasta > {}'.\
-          format(Plugin.getEDirectProgram('efetch'), dbName, ncbiID, outFasta)
+        if self.searchMode.get() == IDS:
+            ncbiIDs = [key]
+        else:
+            with Entrez.esearch(db=dbName, term=key, retmax=maxEntries, retmode='json') as handle:
+                jDic = json.loads(handle.read())
+                ncbiIDs = jDic['esearchresult']['idlist']
 
-        Plugin.runEDirect(self, fullCMD, cwd=self._getPath())
-        self.checkNotEmpty(outFasta, dbName, ncbiID)
-
-    def searchCompoundStep(self, ncbiID):
-        dbName = 'pccompound'
-        outDir = self._getPath('compounds')
-        if not os.path.exists(outDir):
-            os.mkdir(outDir)
-
-        outTxt = os.path.abspath(self._getTmpPath(ncbiID)) + '.txt'
-        fullCMD = '{} -db {} -query {} | {} > {}'. \
-            format(Plugin.getEDirectProgram('esearch'), dbName, ncbiID, Plugin.getEDirectProgram('efetch'), outTxt)
-
-        Plugin.runEDirect(self, fullCMD, cwd=self._getPath())
-        self.fetchFromPubChem(outTxt, ncbiID)
+        if self.dbType.get() != 2:
+            self.fetchSequences(ncbiIDs, dbName)
+        else:
+            self.fetchCompounds(ncbiIDs)
 
     def createOutputStep(self):
         if self.dbType.get() != 2:
-            if self.source.get() != ID:
-                outputSet = SetOfSequences.create(self._getPath())
-                outDir = self._getPath('sequences')
-                for outFile in os.listdir(outDir):
-                    newSeq, outFile = Sequence(), os.path.abspath(os.path.join(outDir, outFile))
-                    newSeq.importFromFile(outFile, isAmino=self.dbType.get() == 0)
-                    outputSet.append(newSeq)
-                self._defineOutputs(outputSequences=outputSet)
-            else:
-                outDir = self._getPath('sequences')
-                for outFile in os.listdir(outDir):
-                    #There should be just one
-                    newSeq, outFile = Sequence(), os.path.abspath(os.path.join(outDir, outFile))
-                    newSeq.importFromFile(outFile, isAmino=self.dbType.get() == 0)
-                    self._defineOutputs(outputSequence=newSeq)
+            outputSet = SetOfSequences.create(self._getPath())
+            outDir = self._getPath('sequences')
+            for outFile in os.listdir(outDir):
+                newSeq, outFile = Sequence(), os.path.abspath(os.path.join(outDir, outFile))
+                newSeq.importFromFile(outFile, isAmino=self.dbType.get() == 0)
+                outputSet.append(newSeq)
+            self._defineOutputs(outputSequences=outputSet)
 
         else:
             outputSet = SetOfSmallMolecules(filename=self._getPath('outputSmallMolecules.sqlite'))
@@ -133,31 +112,24 @@ class ProtChemNCBIDownload(EMProtocol):
 
             self._defineOutputs(outputSmallMolecules=outputSet)
 
-    def _validate(self):
-        errors = []
-        return errors
 
-    def getDBName(self, dbText):
-        return dbText.split('(')[-1].split(')')[0]
 
-    def checkNotEmpty(self, file, dbName, ncbiID):
-        delete = False
-        with open(file) as f:
-            if not f.read():
-                delete = True
-                print('\nNo sequence was found in database {} with query {}\n'.format(dbName, ncbiID))
 
-        if delete:
-            os.remove(file)
+    def fetchSequences(self, ncbiIDs, dbName):
+        outDir = self._getPath('sequences')
+        if not os.path.exists(outDir):
+            os.mkdir(outDir)
+        for ncbiId in ncbiIDs:
+            with Entrez.efetch(db=dbName, id=ncbiId, rettype='FASTA') as handle:
+                with open(os.path.join(outDir, ncbiId+'.fa'), 'w') as f:
+                    f.write(handle.read())
 
-    def fetchFromPubChem(self, ncbiTxt, ncbiID):
-        if os.path.getsize(ncbiTxt) > 0:
-            with open(ncbiTxt) as fIn:
-                for line in fIn:
-                    if line.startswith('CID:'):
-                        pID = line.strip().split()[1]
-
-            outFile = os.path.abspath(self._getPath('compounds/{}.sdf'.format(pID)))
+    def fetchCompounds(self, ncbiIDs):
+        outDir = self._getPath('compounds')
+        if not os.path.exists(outDir):
+            os.mkdir(outDir)
+        for pID in ncbiIDs:
+            outFile = os.path.abspath(os.path.join(outDir, '{}.sdf'.format(pID)))
             try:
                 self.runJob('wget', '"{}" -O {}'.format(self.getPubChemURL(pID), outFile),
                             cwd=self._getTmpPath())
@@ -167,8 +139,6 @@ class ProtChemNCBIDownload(EMProtocol):
                                 cwd=self._getTmpPath())
                 except:
                     print('Pubchem Compound with ID: {} could not be downloaded'.format(pID))
-        else:
-            print('Your compound with ID: {} could not be found'.format(ncbiID))
 
 
     def getPubChemURL(self, pID, dim=3):
@@ -176,18 +146,17 @@ class ProtChemNCBIDownload(EMProtocol):
             format(pID, dim, dim, pID)
 
     def getInputIds(self):
-        ids = []
-        if self.source.get() == IDS:
-            listIDs = self.listIDs.get().strip()
-            if not listIDs:
-                ids.append(self.inputID.get().strip())
-            else:
-                for line in listIDs.split('\n'):
-                    ids.append(line.strip())
+        ids = {}
+        listIDs = self.listIDs.get()
+        if self.searchMode.get() == IDS:
+            for line in listIDs.split('\n'):
+                if line.strip():
+                    ids[json.loads(line.strip())['ID']] = 1
 
-        elif self.source.get() == FILE:
-            with open(self.inputFile.get()) as fIn:
-                for line in fIn:
-                    ids.append(line.strip())
+        elif self.searchMode.get() == KEYS:
+            for line in listIDs.split('\n'):
+                if line.strip():
+                    jDic = json.loads(line.strip())
+                    ids[jDic['ID']] = jDic['maxEntries']
 
         return ids

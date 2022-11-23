@@ -46,9 +46,35 @@ class SetDefaultBLASTParameters(EmWizard):
         for attr in DEF_BLAST_PARAMS[blatsProgram]:
             form.setVar(attr, DEF_BLAST_PARAMS[blatsProgram][attr])
 
-AddElementWizard().addTarget(protocol=ProtChemNCBIDownload,
-                             targets=['inputID'],
-                             inputs=['inputID'],
-                             outputs=['listIDs'])
+
+class AddNCBI_ID_Wizard(AddElementWizard):
+    """Add ID or keyword in NCBI fetch protocol to the list"""
+    _targets, _inputs, _outputs = [], {}, {}
+
+    def show(self, form, *params):
+      inputParam, outputParam = self.getInputOutput(form)
+      protocol = form.protocol
+
+      inID = getattr(protocol, inputParam[0]).get()
+      searchMode = getattr(protocol, inputParam[2]).get()
+
+      if inID and inID.strip() != '':
+          prevList = self.curePrevList(getattr(protocol, outputParam[0]).get())
+
+          if searchMode == 0:
+              towrite = prevList + '{"ID": "%s"}\n' % (inID.strip())
+
+          else:
+              maxEntries = getattr(protocol, inputParam[1]).get()
+              if maxEntries:
+                  towrite = prevList + '{"ID": "%s", "maxEntries": "%s"}\n' % (inID.strip(), maxEntries)
+
+          form.setVar(outputParam[0], towrite)
+
+
+AddNCBI_ID_Wizard().addTarget(protocol=ProtChemNCBIDownload,
+                              targets=['addEntry'],
+                              inputs=['inputID', 'maxEntries', 'searchMode'],
+                              outputs=['listIDs'])
 
 

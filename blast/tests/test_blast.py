@@ -24,10 +24,24 @@
 
 from pyworkflow.tests import BaseTest
 import pyworkflow.tests as tests
+
+from pwem.protocols import ProtImportSequence
+
 from blast import Plugin
 from blast.constants import *
 
 from ..protocols import ProtChemBLAST, ProtChemBLASTDatabase, ProtChemNCBIDownload
+
+idsDic = {0: '{"ID": "P0DTC2"}\n{"ID": "P59594"}\n',
+          1: '{"ID": "nr_025000"}\n{"ID": "nr_025001"}\n',
+          2: '{"ID": "2244"}\n{"ID": "6247"}\n'}
+
+keysDic = {0: '{"ID": "hemoglobin", "maxEntries": "2"}\n',
+           1: '{"ID": "hemoglobin", "maxEntries": "2"}\n',
+           2: '{"ID": "aspirin", "maxEntries": "2"}\n'}
+
+dbLabels = ['Protein', 'Nucleotide', 'Compounds']
+
 
 class TestNCBIDownload(BaseTest):
   @classmethod
@@ -35,47 +49,116 @@ class TestNCBIDownload(BaseTest):
     tests.setupTestProject(cls)
 
   @classmethod
-  def _runImportFromID(cls):
-    protImportSequence = cls.newProtocol(
+  def _runImportFromID(cls, dbType=1):
+    protImportNCBI = cls.newProtocol(
       ProtChemNCBIDownload,
-      inputID='nr_025000',
-      dbType=1)
-    cls.launchProtocol(protImportSequence)
-    return protImportSequence
+      listIDs=idsDic[dbType], dbType=dbType)
+    protImportNCBI.setObjLabel('NCBI from ID ' + dbLabels[dbType])
+
+    cls.proj.launchProtocol(protImportNCBI, wait=False)
+    return protImportNCBI
+
+  @classmethod
+  def _runImportFromKey(cls, dbType=1):
+    protImportNCBI = cls.newProtocol(
+      ProtChemNCBIDownload,
+      searchMode=1, listIDs=keysDic[dbType], dbType=dbType)
+    protImportNCBI.setObjLabel('NCBI from keyword ' + dbLabels[dbType])
+
+    cls.proj.launchProtocol(protImportNCBI, wait=False)
+    return protImportNCBI
 
   def testNCBIDownload(self):
-    protNCBI = self._runImportFromID()
-    self.assertIsNotNone(protNCBI.outputSequence)
+    prots = []
+    for i in range(3):
+        prots += [self._runImportFromID(dbType=i)]
 
+    for i in range(3):
+        if i == 2:
+            self._waitOutput(prots[i], 'outputSmallMolecules')
+            self.assertIsNotNone(prots[i].outputSmallMolecules)
+        else:
+            self._waitOutput(prots[i], 'outputSequences')
+            self.assertIsNotNone(prots[i].outputSequences)
 
-class TestBLAST(TestNCBIDownload):
+  def testNCBISearch(self):
+    prots = []
+    for i in range(3):
+        prots += [self._runImportFromKey(dbType=i)]
+
+    for i in range(3):
+        if i == 2:
+            self._waitOutput(prots[i], 'outputSmallMolecules')
+            self.assertIsNotNone(prots[i].outputSmallMolecules)
+        else:
+            self._waitOutput(prots[i], 'outputSequences')
+            self.assertIsNotNone(prots[i].outputSequences)
+
+class TestDatabaseBLAST(BaseTest):
   dbName = '16S_ribosomal_RNA'
   @classmethod
+  def setUpClass(cls):
+    tests.setupTestProject(cls)
+
+  @classmethod
   def _createLocalDatabase(cls):
-      dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=True)
-      print('dbName: ', cls.dbName, dbIndex)
-      protDB = cls.newProtocol(ProtChemBLASTDatabase,
-                                fromNCBI=True, inputID=dbIndex)
-      cls.launchProtocol(protDB)
-      return protDB
+    dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=True)
+    protDB = cls.newProtocol(ProtChemBLASTDatabase, fromNCBI=True, inputID=dbIndex)
+    cls.launchProtocol(protDB, wait=True)
+    return protDB
 
   @classmethod
   def getDatabaseIndex(cls, dbName, fromNCBI=False):
     if not fromNCBI:
-        options = Plugin.getLocalDatabases()
+      options = Plugin.getLocalDatabases()
     else:
-        options = BLASTdbs
+      options = BLASTdbs
     for i, name in enumerate(options):
-        if dbName == name:
-          return i
+      if dbName == name:
+        return i
 
+  def testDBBLAST(self):
+    protDB = self._createLocalDatabase()
+    self.assertTrue(protDB.isFinished() and not protDB.isFailed())
+
+
+class TestBLAST(BaseTest):
+  dbName = '16S_ribosomal_RNA'
+  @classmethod
+  def setUpClass(cls):
+    tests.setupTestProject(cls)
 
   @classmethod
-  def _runBLASTn(cls, sequence):
+  def _createLocalDatabase(cls):
+    dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=True)
+    protDB = cls.newProtocol(ProtChemBLASTDatabase, fromNCBI=True, inputID=dbIndex)
+    cls.launchProtocol(protDB)
+    return protDB
+
+  @classmethod
+  def getDatabaseIndex(cls, dbName, fromNCBI=False):
+    if not fromNCBI:
+      options = Plugin.getLocalDatabases()
+    else:
+      options = BLASTdbs
+    for i, name in enumerate(options):
+      if dbName == name:
+        return i
+
+  @classmethod
+  def _runImportSeq(self):
+    protImportSeq = self.newProtocol(
+      ProtImportSequence,
+      inputSequence=1, inputNucleotideSequence=3, geneBankSequence='nr_025000')
+    self.launchProtocol(protImportSeq)
+    return protImportSeq
+
+  @classmethod
+  def _runBLASTn(cls, protSeq):
       dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=False)
       protBLAST = cls.newProtocol(
         ProtChemBLAST,
-        inputSequence=sequence, seqType=1, localSearch=True, dbName=dbIndex,
+        inputSequence=protSeq.outputSequence, seqType=1, localSearch=True, dbName=dbIndex,
         word_size='11', gapopen='5', gapextend='2'
         )
 
@@ -83,9 +166,12 @@ class TestBLAST(TestNCBIDownload):
       return protBLAST
 
   def testBLAST(self):
-    self._createLocalDatabase()
-    protSequence = self._runImportFromID()
-    protBLAST = self._runBLASTn(protSequence.outputSequence)
+    dbIndex = self.getDatabaseIndex(self.dbName, fromNCBI=False)
+    if dbIndex == None:
+        self._createLocalDatabase()
+
+    protSeq = self._runImportSeq()
+    protBLAST = self._runBLASTn(protSeq)
     self.assertIsNotNone(protBLAST.outputSequences)
 
 

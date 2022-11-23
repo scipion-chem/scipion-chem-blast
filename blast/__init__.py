@@ -51,19 +51,29 @@ class Plugin(pwem.Plugin):
         cls.addBLASTPackage(env)
 
     @classmethod
+    def addBLASTPackage(cls, env):
+        installationCmd = 'wget %s -O %s && ' % (cls._getBLASTDownloadUrl(), cls._getBLASTTar())
+        installationCmd += 'tar -xf %s --strip-components 1 && ' % cls._getBLASTTar()
+        installationCmd += 'rm %s && ' % cls._getBLASTTar()
+        installationCmd += 'mkdir %s && ' % \
+                           join(pwem.Config.EM_ROOT, BLAST_DIC['name'] + '-' + BLAST_DIC['version'], 'databases')
+
+        # Creating validation file
+        BLAST_INSTALLED = '%s_installed' % BLAST_DIC['name']
+        installationCmd += 'touch %s' % BLAST_INSTALLED  # Flag installation finished
+
+        env.addPackage(BLAST_DIC['name'],
+                       version=BLAST_DIC['version'],
+                       tar='void.tgz',
+                       commands=[(installationCmd, BLAST_INSTALLED)],
+                       default=True)
+
+
+
+    @classmethod
     def runBLAST(cls, protocol, program, args, cwd=None):
         """ Run BLAST program commands from a given protocol. """
         protocol.runJob(join(cls.getVar(BLAST_DIC['home']), 'bin', program), args, cwd=cwd)
-
-    @classmethod
-    def runEDirect(cls, protocol, fullCMD, cwd):
-        """ Run EDirect program commands from a given protocol. """
-        print('Edirect run: ', fullCMD)
-        check_call(fullCMD, shell=True, env=protocol._getEnviron(), cwd=cwd)
-
-    @classmethod
-    def getEDirectProgram(cls, program):
-        return join(cls.getVar(BLAST_DIC['home']), 'edirect', program)
 
     @classmethod
     def updateDatabase(cls, protocol, args, cwd=None):
@@ -75,29 +85,6 @@ class Plugin(pwem.Plugin):
     @classmethod  #  Test that
     def getEnviron(cls):
         pass
-
-    @classmethod
-    def addBLASTPackage(cls, env):
-        installationCmd = 'wget %s -O %s && ' % (cls._getBLASTDownloadUrl(), cls._getBLASTTar())
-        installationCmd += 'tar -xf %s --strip-components 1 && ' % cls._getBLASTTar()
-        installationCmd += 'rm %s && ' % cls._getBLASTTar()
-        installationCmd += 'mkdir %s && ' % \
-                           join(pwem.Config.EM_ROOT, BLAST_DIC['name'] + '-' + BLAST_DIC['version'], 'databases')
-
-        #Edirect
-        installationCmd += 'printf "N\\n" | sh -c "$(wget -q {} -O -)" && '.format(cls._getEDirectDownloadUrl())
-        installationCmd += 'mv ~/edirect ./ && '
-
-
-        # Creating validation file
-        BLAST_INSTALLED = '%s_installed' % BLAST_DIC['name']
-        installationCmd += 'touch %s' % BLAST_INSTALLED  # Flag installation finished
-
-        env.addPackage(BLAST_DIC['name'],
-                       version=BLAST_DIC['version'],
-                       tar='void.tgz',
-                       commands=[(installationCmd, BLAST_INSTALLED)],
-                       default=True)
 
     # ---------------------------------- Utils functions  -----------------------
     @classmethod
