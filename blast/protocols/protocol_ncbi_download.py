@@ -61,7 +61,7 @@ class ProtChemNCBIDownload(EMProtocol):
                        default=5, help="maximum number of entries to take into account in the search")
         group.addParam('addEntry', LabelParam, label='Add ID / keyword: ', help='Add ID / keyword to the list')
 
-        group.addParam('listIDs', TextParam, width=120, label='List of IDs / keywords:',
+        group.addParam('listIDs', TextParam, width=60, label='List of IDs / keywords:',
                        help='List of IDs /keywords to be searched in NCBI databases')
 
         form.addParallelSection(threads=4, mpi=1)
