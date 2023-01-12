@@ -70,7 +70,6 @@ class ProtChemNCBIDownload(EMProtocol):
     def _insertAllSteps(self):
         searchIds = []
         inputIds = self.getInputIds()
-        handle = Entrez.esearch(db='pccompound', term='2244', retmax=1)
 
         for key in inputIds:
             searchIds.append(self._insertFunctionStep('searchStep', key, inputIds[key], prerequisites=[]))
