@@ -1,6 +1,6 @@
 # **************************************************************************
 # *
-# * Authors:    Alberto M. Parra Pérez (amparraperez@gmail.com)
+# * Authors:     Daniel Del Hoyo Gomez (ddelhoyo@cnb.csic.es)
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
@@ -25,5 +25,5 @@
 # **************************************************************************
 
 
-from .test_blast import TestBLAST, TestNCBIDownload
+from blast.tests.test_blast import *
 

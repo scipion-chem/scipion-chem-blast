@@ -24,6 +24,8 @@
 # *
 # **************************************************************************
 
+import os
+
 from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import *
 from pyworkflow import BETA
@@ -50,6 +52,10 @@ class ProtChemBLAST(EMProtocol):
         group.addParam('seqType', EnumParam, default=1,
                       choices=['Protein', 'Nucleotide'], display=EnumParam.DISPLAY_HLIST,
                       label='Type of sequence: ')
+        
+        group.addParam('exportFasta', BooleanParam, default=False,
+                       label='Create output fasta: ', expertLevel=LEVEL_ADVANCED)
+        
 
         group = form.addGroup('Database')
         group.addParam('localSearch', BooleanParam, default=False,
@@ -94,7 +100,8 @@ class ProtChemBLAST(EMProtocol):
 
         group.addParam('maxEntries', IntParam, default=20,
                        label='Maximum number of entries to keep: ',
-                       help='Maximum number of entries to keep: -max_target_seqs')
+                       help='Maximum number of entries to keep: -max_target_seqs. '
+                            'Undefined with <0')
 
 
         form.addSection(label='Parameters')
@@ -162,8 +169,9 @@ class ProtChemBLAST(EMProtocol):
 
         outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
 
-        args = '-query {} -db {} -max_target_seqs {} -out {} -outfmt 4'.\
-          format(inFasta, dbName, self.maxEntries.get(), outFile)
+        args = '-query {} -db {} -out {} -outfmt 4'.format(inFasta, dbName, outFile)
+        if self.maxEntries.get() > 0:
+            args += ' -max_target_seqs {}'.format(self.maxEntries.get())
         if not self.localSearch.get():
             args += ' -remote'
         elif self.localSearch.get() and self.updateDB.get():
@@ -205,6 +213,10 @@ class ProtChemBLAST(EMProtocol):
                 inSeq.evalue = Float(0.0)
                 inSeq.score = Float(0.0)
                 outSeqs.append(inSeq)
+
+        if self.exportFasta.get():
+            outPath = os.path.abspath(self._getExtraPath('viewSequences.fasta'))
+            outSeqs.exportToFile(outPath)
 
         self._defineOutputs(outputSequences=outSeqs)
 
