@@ -215,7 +215,7 @@ class ProtChemBLAST(EMProtocol):
                 outSeqs.append(inSeq)
 
         if self.exportFasta.get():
-            outPath = os.path.abspath(self._getExtraPath('viewSequences.fasta'))
+            outPath = self._getExtraPath('viewSequences.fasta')
             outSeqs.exportToFile(outPath)
 
         self._defineOutputs(outputSequences=outSeqs)
