@@ -28,7 +28,7 @@ import pyworkflow.tests as tests
 from pwem.protocols import ProtImportSequence
 
 from blast import Plugin
-from blast.constants import *
+from blast.constants import BLASTdbs
 
 from ..protocols import ProtChemBLAST, ProtChemBLASTDatabase, ProtChemNCBIDownload
 
@@ -146,11 +146,11 @@ class TestBLAST(BaseTest):
         return i
 
   @classmethod
-  def _runImportSeq(self):
-    protImportSeq = self.newProtocol(
+  def _runImportSeq(cls):
+    protImportSeq = cls.newProtocol(
       ProtImportSequence,
       inputSequence=1, inputNucleotideSequence=3, geneBankSequence='nr_025000')
-    self.launchProtocol(protImportSeq)
+    cls.launchProtocol(protImportSeq)
     return protImportSeq
 
   @classmethod
