@@ -9,6 +9,8 @@ This is a **Scipion** plugin that offers different **blast tools**.
 Therefore, this plugin allows to use programs from the blast software suite
 within the Scipion framework.
 
+Full documentation to this plugin can be found in the `official documentation page <https://scipion-chem.github.io/docs/plugins/blast/index.html>`_.
+
 ==========================
 Install this plugin
 ==========================
