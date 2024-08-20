@@ -24,7 +24,7 @@
 # *
 # **************************************************************************
 
-import os
+import os, json
 
 from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import *
@@ -52,9 +52,6 @@ class ProtChemBLAST(EMProtocol):
         group.addParam('seqType', EnumParam, default=1,
                       choices=['Protein', 'Nucleotide'], display=EnumParam.DISPLAY_HLIST,
                       label='Type of sequence: ')
-        
-        group.addParam('exportFasta', BooleanParam, default=False,
-                       label='Create output fasta: ', expertLevel=LEVEL_ADVANCED)
         
 
         group = form.addGroup('Database')
@@ -169,7 +166,7 @@ class ProtChemBLAST(EMProtocol):
 
         outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
 
-        args = '-query {} -db {} -out {} -outfmt 4'.format(inFasta, dbName, outFile)
+        args = '-query {} -db {} -out {} -outfmt 15'.format(inFasta, dbName, outFile)
         if self.maxEntries.get() > 0:
             args += ' -max_target_seqs {}'.format(self.maxEntries.get())
         if not self.localSearch.get():
@@ -205,7 +202,7 @@ class ProtChemBLAST(EMProtocol):
                 isAmino = self.seqType.get() == 0
                 newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
                                   description=seqDic[seqId]['description'])
-                newSeq.evalue = Float(seqDic[seqId]['evalue'])
+                newSeq.evalue = String(str(seqDic[seqId]['evalue']))
                 newSeq.score = Float(seqDic[seqId]['score'])
                 outSeqs.append(newSeq)
             else:
@@ -214,9 +211,8 @@ class ProtChemBLAST(EMProtocol):
                 inSeq.score = Float(0.0)
                 outSeqs.append(inSeq)
 
-        if self.exportFasta.get():
-            outPath = self._getExtraPath('viewSequences.fasta')
-            outSeqs.exportToFile(outPath)
+        outPath = self._getExtraPath('viewSequences.fasta')
+        outSeqs.exportToFile(outPath)
 
         self._defineOutputs(outputSequences=outSeqs)
 
@@ -339,48 +335,23 @@ class ProtChemBLAST(EMProtocol):
 
 
     def parseBLASTOutput(self):
-        def goToNextLine(fIn, read=None):
-            line = ''
-            while line.strip() == '':
-                line = fIn.readline()
-            if read is not None:
-                read += 1
-            return line, read
+      inSeq = self.inputSequence.get()
+      outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+      with open(outFile) as f:
+        js = json.loads(f.read())
 
-        inSeq = self.inputSequence.get()
-        outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
-        seqDic, read = {'Query_1': {'sequence': '', 'firstPosition': 1}}, 0
-        with open(outFile) as fIn:
-            for line in fIn:
-                if read == 0 and line.startswith('Sequences producing significant alignments'):
+      seqDic = {}
+      hits = js['BlastOutput2'][0]['report']['results']['search']['hits']
+      for h in hits:
+        accession, hId = h['description'][0]['accession'], h['description'][0]['id']
+        for hs in h['hsps']:
+          hf, qf, ql, ev, sc = hs['hit_from'], hs['query_from'], hs['query_to'], hs['evalue'], hs['score']
+          hseq = hs['hseq']
+          acc = f'{accession}_{hf}'
 
-                    read, line = 1, fIn.readline()
-                    while line.strip() == '':
-                        line = fIn.readline()
+          seqDic[acc] = {'score': sc, 'evalue': ev, 'sequence': hseq.replace('-', ''), 'description': hId}
 
-                if read == 1:
-                    if line.strip() != '':
-                        line = line.strip().split()
-                        seqDic[line[0]] = {'description': ' '.join(line[1:-2]), 'score': line[-2], 'evalue': line[-1],
-                                           'sequence': ''}
-                    else:
-                        line, read = goToNextLine(fIn, read)
-
-                if read == 2:
-                    if line.strip() != '':
-                        sline = line.strip().split()
-                        if sline[0] in seqDic:
-                            seqDic[sline[0]]['sequence'] += line[15:75].replace(' ', '-')
-                            seqDic[sline[0]]['firstPosition'] = sline[1]
-                    else:
-                        line, read = goToNextLine(fIn, read)
-
-                if read == 3:
-                    if line.strip() != '':
-                        line = line.strip().split()
-                        if line[0] in seqDic:
-                            seqDic[line[0]]['sequence'] += line[2]
-        return seqDic
+      return seqDic
 
 
 
