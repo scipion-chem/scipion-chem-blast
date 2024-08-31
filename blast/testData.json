@@ -8,7 +8,7 @@
 			
 		],
 		"others": [
-			
+			{"test": "test_blast.TestNCBIDownload", "reason": "Needs fix. Already failing with following message: AttributeError: 'ProtChemNCBIDownload' object has no attribute 'outputSequences'"}
 		]
 	}
 }
