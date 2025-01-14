@@ -26,14 +26,16 @@
 
 import os, json
 
-from pwem.protocols import EMProtocol
 from pyworkflow.protocol.params import *
 from pyworkflow import BETA
-from blast import Plugin
 from pwem.objects import Sequence, SetOfSequences
+from pwem.protocols import EMProtocol
 
-from ..constants import *
 from pwchem.utils import getSequenceFastaName
+
+from blast import Plugin
+from blast.constants import *
+
 
 PROTEIN, NUCLEOTIDE = 0, 1
 
