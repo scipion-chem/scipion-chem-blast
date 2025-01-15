@@ -32,6 +32,7 @@ from pwem.objects import Sequence, SetOfSequences
 from pwem.protocols import EMProtocol
 
 from pwchem.utils import getSequenceFastaName
+from pwchem.utils.utilsFasta import fastFastaExport
 
 from blast import Plugin
 from blast.constants import *
@@ -214,7 +215,8 @@ class ProtChemBLAST(EMProtocol):
                 outSeqs.append(inSeq)
 
         outPath = self._getExtraPath('viewSequences.fasta')
-        outSeqs.exportToFile(outPath)
+        fastFastaExport(outSeqs, outPath)
+        # outSeqs.exportToFile(outPath)
 
         self._defineOutputs(outputSequences=outSeqs)
 
