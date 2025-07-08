@@ -36,7 +36,44 @@ from blast import Plugin, BLAST_DIC
 from blast.constants import BLASTdbs
 
 class ProtChemBLASTDatabase(EMProtocol):
-    """Creates a BLAST database locally from a set of sequences or downloading from ncbi databases"""
+    """Creates a BLAST database locally from a set of sequences or downloading from ncbi databases
+    
+    User IA Manual: BlastDatabase Protocol
+
+The BlastDatabase protocol is designed to create local BLAST-compatible
+databases from user-provided sequence files. This is a preparatory step
+required for running local BLAST searches using the Blast protocol within
+Scipion-Chem. It allows users to convert FASTA-formatted sequence collections
+into searchable database formats that can be queried efficiently and repeatedly.
+
+To begin, the user must provide a file containing one or more sequences in FASTA
+format. These sequences can represent proteins or nucleotides, depending on the
+intended use of the database. The protocol automatically detects the sequence
+type, although the user can explicitly specify whether the database should be
+created for protein or nucleotide queries. This selection determines how the
+input is parsed and which search modes will be compatible with the resulting
+database.
+
+The user must also define a name for the database, which will be used to identify
+it in downstream protocols. This name must be unique within the working project
+and should not conflict with existing databases in the workspace. Optionally, a
+title or description may be added to annotate the database and facilitate its
+interpretation later on.
+
+Once the protocol is executed, the input FASTA file is processed and indexed
+using the `makeblastdb` utility. This step generates a collection of binary files
+that store sequence data, indexing tables, and metadata required for fast
+lookup. The output is stored in a designated folder and registered as a BLAST
+database object within Scipion-Chem. This database can then be selected in the
+Blast protocol to perform sequence similarity searches without requiring an
+internet connection or access to remote servers.
+
+In summary, the BlastDatabase protocol provides an efficient way to build
+custom, local BLAST databases for personalized or large-scale sequence analysis.
+It integrates seamlessly with the rest of the Scipion-Chem bioinformatics
+toolkit and enables reproducible, offline workflows for sequence comparison and
+homology-based modeling.
+    """
     _label = 'Local BLAST database'
     _devStatus = BETA
 
