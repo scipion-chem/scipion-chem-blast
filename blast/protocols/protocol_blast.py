@@ -41,7 +41,52 @@ from blast.constants import *
 PROTEIN, NUCLEOTIDE = 0, 1
 
 class ProtChemBLAST(EMProtocol):
-    """Perform a BLAST search"""
+    """Perform a BLAST search
+    
+    User IA Manual: Blast Protocol
+
+The Blast protocol allows users to perform sequence similarity searches using
+the BLAST algorithm within the Scipion-Chem platform. It is particularly useful
+for identifying homologous sequences, annotating unknown proteins, or selecting
+templates for comparative modeling workflows. The protocol supports standard
+BLAST variants, including searches against custom or precompiled databases.
+
+To use the protocol, the user must provide one or more query sequences in FASTA
+format. Each sequence should correspond to a protein of interest for which
+homologous sequences are to be found. The user must also specify the database to
+search against. This can be a local database previously formatted for BLAST or a
+predefined remote database, depending on the configuration of the system and the
+available resources.
+
+Key parameters control the type of BLAST search to be performed. The user can
+select between different modes, such as blastp for protein?protein comparison or
+tblastn for protein?nucleotide searches. The choice of mode affects how the input
+sequence is interpreted and what types of hits will be returned. Scoring
+parameters such as the E-value threshold, the number of target sequences to
+return, and the filtering of low-complexity regions can also be adjusted to
+balance sensitivity and specificity.
+
+The protocol allows advanced customization of the search behavior. Users may
+define whether compositional adjustments should be applied, whether gap penalties
+should follow the default profile, and how alignments should be scored and ranked.
+Depending on these parameters, the results may prioritize high-identity matches,
+functionally similar sequences, or structurally useful templates for downstream
+modeling.
+
+After execution, the protocol produces a BLAST result table summarizing the hits
+for each query. This table includes scores, identities, alignment lengths, and
+accession information, which can be used to filter or prioritize entries. Optionally,
+alignments can be stored in plain text or XML format for further inspection. The
+top-ranked hits may be retrieved and passed directly to other Scipion-Chem
+protocols, such as comparative modeling, multiple sequence alignment, or
+phylogenetic analysis.
+
+In summary, the Blast protocol provides a robust and configurable interface for
+sequence homology searches, integrating seamlessly with other Scipion-Chem tools
+for structural bioinformatics. It allows users to explore evolutionary
+relationships, discover structural templates, or validate sequence annotations
+within a reproducible and automated workflow.
+    """
     _label = 'BLAST search'
     _devStatus = BETA
 
