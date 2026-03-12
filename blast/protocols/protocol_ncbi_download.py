@@ -38,37 +38,83 @@ IDS, KEYS = 0, 1
 class ProtChemNCBIDownload(EMProtocol):
     """Download the Fasta file(s) from NCBI databases
 
-User IA Manual: NcbiDownload Protocol
+        AI Generated:
 
-The NcbiDownload protocol allows users to retrieve biological sequences directly
-from the NCBI databases using accession numbers or search terms. It provides a
-simple and reproducible way to access curated nucleotide or protein sequences
-from GenBank, RefSeq, or UniProt without leaving the Scipion-Chem environment.
+            ProtChemNCBIDownload - User Manual
 
-To begin, the user must provide a list of identifiers or a search query that
-matches entries in the NCBI database. These identifiers can refer to accession
-codes, gene symbols, protein names, or any valid term accepted by the NCBI
-Entrez system. The user must also select the type of sequence to be retrieved,
-choosing between nucleotide and protein formats. This selection determines which
-databases will be queried and how the results will be parsed.
+            Overview
+            --------
+            The ProtChemNCBIDownload protocol allows users to retrieve biological sequences
+            or small molecules directly from NCBI databases within the Scipion-Chem platform.
+            It supports automated downloads of nucleotide, protein, or PubChem compound data
+            based on accession numbers or keyword searches. This provides a reproducible
+            method to integrate external sequence or compound information into bioinformatics
+            and structural workflows.
 
-The protocol offers the option to download either a single sequence per query or
-to collect all matching records, depending on the specificity of the search. In
-addition, the user can limit the number of returned sequences to avoid retrieving
-large datasets unintentionally. The output format is typically FASTA, and each
-entry includes standard annotations such as the sequence identifier, description,
-and source organism.
+            Input Requirements
+            ------------------
+            1. **Search Mode**:
+               - **ID**: Fetch data for specific accession numbers or compound IDs.
+               - **Keyword**: Use an NCBI search term to retrieve matching entries.
 
-Downloaded sequences are saved locally and registered as Scipion objects, making
-them immediately available for use in downstream protocols. These may include
-sequence alignment, BLAST database creation, modeling, or mutation analysis.
-A log of the download process is also generated, including information about
-successful retrievals and any queries that failed to return valid results.
+            2. **Database Type**:
+               - **Protein**: Retrieve amino acid sequences from NCBI protein databases.
+               - **Nucleotide**: Retrieve nucleotide sequences from NCBI GenBank/RefSeq.
+               - **PCCompound**: Retrieve chemical structures from PubChem.
 
-In summary, the NcbiDownload protocol provides a streamlined method for accessing
-sequence data from NCBI within the Scipion-Chem framework. It enables automated
-and traceable integration of external biological information into
-structure-based and bioinformatics workflows.
+            3. **Input Listing**:
+               - Provide a list of IDs or keywords in JSON format.
+               - Optionally, specify `maxEntries` for keyword searches to limit
+                 the number of retrieved sequences/compounds.
+
+            Workflow
+            --------
+            1. **ID-based retrieval**:
+               - Directly fetch the sequences or compounds corresponding to
+                 the provided IDs.
+            2. **Keyword-based search**:
+               - Perform an Entrez esearch query to retrieve a list of matching IDs.
+               - Limit results using the `maxEntries` parameter.
+            3. **Sequence download**:
+               - Sequences are fetched in FASTA format.
+               - Stored as Scipion `Sequence` objects for immediate use.
+            4. **Compound download**:
+               - Structures are fetched in SDF format from PubChem.
+               - Stored as `SmallMolecule` objects for downstream analysis.
+            5. **Parallel execution**:
+               - Multiple queries can be executed concurrently using threads.
+
+            Outputs
+            -------
+            - **Sequences**: `SetOfSequences` containing downloaded FASTA sequences,
+              with annotations preserved.
+            - **Small molecules**: `SetOfSmallMolecules` containing SDF files,
+              registered in Scipion-Chem for further chemical analysis or modeling.
+
+            Validation & Warnings
+            ---------------------
+            - Ensure valid accession numbers, keywords, or PubChem IDs.
+            - If a query fails, it is reported, and the workflow continues
+              with remaining entries.
+            - Parallel download threads may generate temporary files; they are
+              cleaned automatically.
+
+            Practical Recommendations
+            -------------------------
+            - Use ID mode for precise, known sequences or compounds.
+            - Use keyword mode for exploratory searches; limit results to
+              avoid retrieving excessively large datasets.
+            - Ensure network connectivity for downloading from NCBI or PubChem.
+            - Verify downloaded sequences and compounds before use in downstream
+              analyses.
+
+            Final Perspective
+            -----------------
+            ProtChemNCBIDownload provides a streamlined, reproducible, and automated
+            method to integrate external sequence and compound information from NCBI
+            directly into Scipion-Chem workflows. It supports proteins, nucleotides,
+            and chemical compounds, facilitating comprehensive bioinformatics
+            and cheminformatics pipelines.
     
     """
     _label = 'NCBI download'

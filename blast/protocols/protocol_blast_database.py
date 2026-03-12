@@ -38,41 +38,72 @@ from blast.constants import BLASTdbs
 class ProtChemBLASTDatabase(EMProtocol):
     """Creates a BLAST database locally from a set of sequences or downloading from ncbi databases
     
-    User IA Manual: BlastDatabase Protocol
+    AI Generated:
 
-The BlastDatabase protocol is designed to create local BLAST-compatible
-databases from user-provided sequence files. This is a preparatory step
-required for running local BLAST searches using the Blast protocol within
-Scipion-Chem. It allows users to convert FASTA-formatted sequence collections
-into searchable database formats that can be queried efficiently and repeatedly.
+        ProtChemBLASTDatabase - User Manual
 
-To begin, the user must provide a file containing one or more sequences in FASTA
-format. These sequences can represent proteins or nucleotides, depending on the
-intended use of the database. The protocol automatically detects the sequence
-type, although the user can explicitly specify whether the database should be
-created for protein or nucleotide queries. This selection determines how the
-input is parsed and which search modes will be compatible with the resulting
-database.
+        Overview
+        --------
+        The ProtChemBLASTDatabase protocol allows users to create local BLAST-compatible
+        databases from sequence collections. This is a preparatory step for running
+        local BLAST searches using the ProtChemBLAST protocol within Scipion-Chem.
+        Databases can be generated from user-provided FASTA sequences or downloaded
+        directly from NCBI.
 
-The user must also define a name for the database, which will be used to identify
-it in downstream protocols. This name must be unique within the working project
-and should not conflict with existing databases in the workspace. Optionally, a
-title or description may be added to annotate the database and facilitate its
-interpretation later on.
+        Input Requirements
+        ------------------
+        1. **Create from NCBI**: Optionally, download a precompiled BLAST database
+           from NCBI.
+           - Specify the database name from the available NCBI BLASTdb list.
+        2. **Local sequences**: Provide a `SetOfSequences` containing one or more
+           sequences in FASTA format.
+           - Specify whether sequences are **Protein** or **Nucleotide**.
+           - Assign a **database name/title** for the new local database.
 
-Once the protocol is executed, the input FASTA file is processed and indexed
-using the `makeblastdb` utility. This step generates a collection of binary files
-that store sequence data, indexing tables, and metadata required for fast
-lookup. The output is stored in a designated folder and registered as a BLAST
-database object within Scipion-Chem. This database can then be selected in the
-Blast protocol to perform sequence similarity searches without requiring an
-internet connection or access to remote servers.
+        Workflow
+        --------
+        1. **NCBI database download**:
+           - Downloads and decompresses the selected database.
+           - Stores files in the local BLAST database directory.
+           - Ensures the database is ready for offline queries.
 
-In summary, the BlastDatabase protocol provides an efficient way to build
-custom, local BLAST databases for personalized or large-scale sequence analysis.
-It integrates seamlessly with the rest of the Scipion-Chem bioinformatics
-toolkit and enables reproducible, offline workflows for sequence comparison and
-homology-based modeling.
+        2. **Local database creation**:
+           - Exports the input sequences to a FASTA file.
+           - Uses `makeblastdb` to create a BLAST database, generating
+             necessary index and metadata files.
+           - Supports both protein (`-dbtype prot`) and nucleotide (`-dbtype nucl`)
+             databases.
+           - The resulting database is registered in the local BLAST databases
+             folder for use in ProtChemBLAST searches.
+
+        Outputs
+        -------
+        - A local BLAST database ready for query by the ProtChemBLAST protocol.
+        - Database files stored in the Scipion-Chem BLAST database directory.
+
+        Validation & Warnings
+        ---------------------
+        - If a local database with the same name exists, a warning is issued
+          to prevent accidental overwriting.
+        - If the chosen name conflicts with an NCBI database, a warning
+          is issued to avoid potential confusion in future downloads.
+        - No additional numerical validation is required.
+
+        Practical Recommendations
+        -------------------------
+        - Use NCBI downloads for standard reference databases.
+        - Use local sequence input for custom or project-specific databases.
+        - Ensure the database name is unique to prevent overwriting existing
+          databases.
+        - For nucleotide databases, ensure sequences are correctly formatted
+          and free of ambiguous bases to avoid indexing errors.
+
+        Final Perspective
+        -----------------
+        ProtChemBLASTDatabase enables reproducible and efficient preparation of
+        BLAST databases, integrating seamlessly with Scipion-Chem workflows for
+        sequence homology searches and annotation. It supports both offline
+        custom databases and automated downloads from NCBI.
     """
     _label = 'Local BLAST database'
     _devStatus = BETA
