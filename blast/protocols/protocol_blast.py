@@ -41,7 +41,102 @@ from blast.constants import *
 PROTEIN, NUCLEOTIDE = 0, 1
 
 class ProtChemBLAST(EMProtocol):
-    """Perform a BLAST search"""
+    """Perform a BLAST search
+    
+        AI Generated:
+
+            ProtChemBLAST - User Manual
+
+            Overview
+            --------
+            The ProtChemBLAST protocol enables users to perform sequence similarity
+            searches using the BLAST algorithm within the Scipion-Chem platform. It
+            supports both protein and nucleotide queries, allowing identification of
+            homologous sequences, annotation of unknown proteins, and selection of
+            templates for comparative modeling or evolutionary analysis.
+
+            Input Requirements
+            ------------------
+            - **Sequence**: Input query sequence provided as a `Sequence` object.
+            - **Sequence type**: Specify whether the input sequence is Protein or
+              Nucleotide.
+
+            Parameters
+            ----------
+            1. **Database selection**:
+               - **Local search**: Choose a database stored locally.
+               - **Remote search**: Use NCBI or precompiled online databases.
+               - **Database choice**: Select from predefined protein/nucleotide
+                 databases or local files.
+
+            2. **BLAST program**:
+               - Protein BLAST options: blastp, blastp-fast, psi-blast, delta-blast
+               - Nucleotide BLAST options: blastn, megablast, dc-megablast, blastx, tblastx
+               - Subprograms (tasks) can be specified for fine control over scoring
+                 and sensitivity.
+
+            3. **Search parameters**:
+               - **E-value**: Threshold for saving hits (default: 0.05)
+               - **Word size**: Length of initial perfect match seed
+               - **Scoring matrix**: Defines alignment scoring (BLOSUM or nucleotide matrices)
+               - **Gap penalties**: Cost to open or extend gaps
+               - **Match/mismatch rewards**: Applied for nucleotide/protein matches
+               - **Maximum entries**: Limit the number of hits to retain
+
+            Workflow
+            --------
+            1. **Input preparation**:
+               - Query sequence is exported to FASTA format.
+               - Output directories are created if they do not exist.
+
+            2. **BLAST execution**:
+               - Constructs BLAST command based on chosen parameters, program,
+                 and database.
+               - Executes BLAST either locally or remotely.
+               - Optional database update for local NCBI databases.
+
+            3. **Output parsing**:
+               - BLAST results are parsed from JSON output.
+               - Extracts sequence, alignment score, E-value, and description.
+               - Removes gaps and assigns unique identifiers to each hit.
+
+            4. **Result collection**:
+               - Creates a `SetOfSequences` object containing:
+                 - Input sequence (updated if necessary)
+                 - Retrieved homologous sequences
+               - Each sequence carries evaluation metadata: score and E-value.
+               - Optionally exports sequences in FASTA format for inspection or downstream protocols.
+
+            Outputs
+            -------
+            - **SetOfSequences**: Contains query and BLAST hits with associated
+              annotations (sequence, score, E-value, description).
+
+            Validation & Warnings
+            ---------------------
+            - Ensures numerical parameters are valid.
+            - Checks compatibility between word size, sequence type, and BLAST mode.
+            - Provides warnings for non-standard gap/mismatch parameter combinations.
+            - BLAST may fail or return suboptimal results if parameters are not
+              compatible with program or sequence type.
+
+            Practical Recommendations
+            -------------------------
+            - Use protein queries with blastp or tblastn for structural annotation.
+            - Use nucleotide queries with blastn or blastx for transcriptome or
+              genomic analyses.
+            - Limit maximum entries to balance runtime and coverage.
+            - Verify BLAST parameters against official documentation for
+              experimental needs.
+
+            Final Perspective
+            -----------------
+            ProtChemBLAST integrates sequence similarity searches into the Scipion-Chem
+            workflow, providing a robust and flexible interface for homology detection,
+            annotation, and downstream structural or evolutionary studies. Results
+            are fully compatible with other Scipion-Chem protocols, enabling
+            automated, reproducible analyses.
+    """
     _label = 'BLAST search'
     _devStatus = BETA
 

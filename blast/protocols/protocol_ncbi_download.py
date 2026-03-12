@@ -36,7 +36,87 @@ from pyworkflow import BETA
 IDS, KEYS = 0, 1
 
 class ProtChemNCBIDownload(EMProtocol):
-    """Download the Fasta file(s) from NCBI databases"""
+    """Download the Fasta file(s) from NCBI databases
+
+        AI Generated:
+
+            ProtChemNCBIDownload - User Manual
+
+            Overview
+            --------
+            The ProtChemNCBIDownload protocol allows users to retrieve biological sequences
+            or small molecules directly from NCBI databases within the Scipion-Chem platform.
+            It supports automated downloads of nucleotide, protein, or PubChem compound data
+            based on accession numbers or keyword searches. This provides a reproducible
+            method to integrate external sequence or compound information into bioinformatics
+            and structural workflows.
+
+            Input Requirements
+            ------------------
+            1. **Search Mode**:
+               - **ID**: Fetch data for specific accession numbers or compound IDs.
+               - **Keyword**: Use an NCBI search term to retrieve matching entries.
+
+            2. **Database Type**:
+               - **Protein**: Retrieve amino acid sequences from NCBI protein databases.
+               - **Nucleotide**: Retrieve nucleotide sequences from NCBI GenBank/RefSeq.
+               - **PCCompound**: Retrieve chemical structures from PubChem.
+
+            3. **Input Listing**:
+               - Provide a list of IDs or keywords in JSON format.
+               - Optionally, specify `maxEntries` for keyword searches to limit
+                 the number of retrieved sequences/compounds.
+
+            Workflow
+            --------
+            1. **ID-based retrieval**:
+               - Directly fetch the sequences or compounds corresponding to
+                 the provided IDs.
+            2. **Keyword-based search**:
+               - Perform an Entrez esearch query to retrieve a list of matching IDs.
+               - Limit results using the `maxEntries` parameter.
+            3. **Sequence download**:
+               - Sequences are fetched in FASTA format.
+               - Stored as Scipion `Sequence` objects for immediate use.
+            4. **Compound download**:
+               - Structures are fetched in SDF format from PubChem.
+               - Stored as `SmallMolecule` objects for downstream analysis.
+            5. **Parallel execution**:
+               - Multiple queries can be executed concurrently using threads.
+
+            Outputs
+            -------
+            - **Sequences**: `SetOfSequences` containing downloaded FASTA sequences,
+              with annotations preserved.
+            - **Small molecules**: `SetOfSmallMolecules` containing SDF files,
+              registered in Scipion-Chem for further chemical analysis or modeling.
+
+            Validation & Warnings
+            ---------------------
+            - Ensure valid accession numbers, keywords, or PubChem IDs.
+            - If a query fails, it is reported, and the workflow continues
+              with remaining entries.
+            - Parallel download threads may generate temporary files; they are
+              cleaned automatically.
+
+            Practical Recommendations
+            -------------------------
+            - Use ID mode for precise, known sequences or compounds.
+            - Use keyword mode for exploratory searches; limit results to
+              avoid retrieving excessively large datasets.
+            - Ensure network connectivity for downloading from NCBI or PubChem.
+            - Verify downloaded sequences and compounds before use in downstream
+              analyses.
+
+            Final Perspective
+            -----------------
+            ProtChemNCBIDownload provides a streamlined, reproducible, and automated
+            method to integrate external sequence and compound information from NCBI
+            directly into Scipion-Chem workflows. It supports proteins, nucleotides,
+            and chemical compounds, facilitating comprehensive bioinformatics
+            and cheminformatics pipelines.
+    
+    """
     _label = 'NCBI download'
     _devStatus = BETA
 
