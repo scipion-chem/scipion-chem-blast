@@ -27,6 +27,8 @@ import pyworkflow.tests as tests
 
 from pwem.protocols import ProtImportSequence
 
+from pwchem.protocols import ProtDefineSeqROI
+
 from blast import Plugin
 from blast.constants import BLASTdbs
 
@@ -172,6 +174,107 @@ class TestBLAST(BaseTest):
 
     protSeq = self._runImportSeq()
     protBLAST = self._runBLASTn(protSeq)
+    self.assertIsNotNone(protBLAST.outputSequences)
+
+
+class TestBLASTBatch(BaseTest):
+  '''AI Generated. Exercises the new multipleQueries batch mode (a whole SetOfSequenceROIs as
+  query instead of a single Sequence), using two windows of the same 16S rRNA sequence already
+  used by TestBLAST as two separate batch queries. Kept as its own BaseTest (not a TestBLAST
+  subclass) so it does not also run the inherited testBLAST method. Uses inputRawSequence
+  (the literal nr_025000 sequence) instead of ProtImportSequence's geneBankSequence fetch: the
+  latter intermittently hits an unrelated pyworkflow sqlite mapper "circular reference" error
+  on this pyworkflow version when storing the downloaded record.'''
+
+  dbName = '16S_ribosomal_RNA'
+  # Literal content of GenBank record nr_025000 (Mycobacterium kubicae 16S rRNA, partial),
+  # hardcoded to avoid both the network fetch and the geneBankSequence storage flakiness.
+  NR_025000_SEQ = (
+    'GGCAACACAGCAAGCGAACGGAAAGGCCCCCGGGGGACCGAGGGCGAACGGGGAGAACACGGGGGACACCCGCACCGGGA'
+    'AAGCCGGGAAACGGGCAAACCGGAAGGACCAGAGAGCAGCAGGGGAAAGCGCGGGGGGAGGGCCCGCGGCCACAGCGGGGG'
+    'GGGACGGCCACCAAGGCGACGACGGGAGCCGGCCGAGAGGGGCCGGCCACACGGGACGAGAACGGCCCAGACCCACGGGA'
+    'GGCAGCAGGGGGAAAGCACAAGGGCGCAAGCCGAGCAGCGACGCCGCGGGGGGAGACGGCCCGGGGAAACCCCAGCAGGG'
+    'ACGAAGCGCAAGGACGGACCGCAGAAGAAGCACCGGCCAACACGGCCAGCAGCCGCGGAAACGAGGGGCGAGCGGCCGGA'
+    'AACGGGCGAAAGAGCCGAGGGGGCGCGGCGGAAAACCGGGGGCAACCCCGGCGGCGGGCGAACGGGCAGACGGAGACGCA'
+    'GGGGAGACGGAACCGGGAGCGGGGAAGCGCAGAACAGGAGGAACACCGGGGCGAAGGCGGGCCGGGCAGAACGACGCGAG'
+    'GAGCGAAAGCGGGGGAGCGAACAGGAAGAACCCGGAGCCACGCCGAAACGGGGGACAGGGGGGCCCCGGGACCGGCCGAG'
+    'CAACGCAAAGACCCCGCCGGGGAGACGGCCGCAAGGCAAAACCAAAGGAAGACGGGGGCCCGCACAAGCGGCGGAGCAGG'
+    'GAAACGAGCAACGCGAAGAACCACCGGGGACAGCACAGGACGCGCAGAGAAGGCGCCCGGGCCGGGCAGGGGGCAGGCGC'
+    'GCAGCCGGCGGAGAGGGGAAGCCCGCAACGAGCGCAACCCGCCAGGCCAGCGGGAAGCCGGGGACCGGAGAGACGCCGGG'
+    'GCAACCGGAGGAAGGGGGGAGACGCAAGCACAGCCCCAGCCAGGGCCACACAGCACAAGGCCGGACAAAGGGCGCGAGCC'
+    'GCGAGGAAGCGAACCAAAGCCGGCCAGCGGACGGGGCGCAACCGACCCCGGAAGCGGAGCGCAGAACGCAGACAGCAACG'
+    'CGCGGGAAACGCCCGGG'
+  )
+
+  @classmethod
+  def setUpClass(cls):
+    tests.setupTestProject(cls)
+
+  @classmethod
+  def _createLocalDatabase(cls):
+    dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=True)
+    protDB = cls.newProtocol(ProtChemBLASTDatabase, fromNCBI=True, inputID=dbIndex)
+    cls.launchProtocol(protDB)
+    return protDB
+
+  @classmethod
+  def getDatabaseIndex(cls, dbName, fromNCBI=False):
+    if not fromNCBI:
+      options = Plugin.getLocalDatabases()
+    else:
+      options = BLASTdbs
+    for i, name in enumerate(options):
+      if dbName == name:
+        return i
+
+  @classmethod
+  def _runImportSeq(cls):
+    protImportSeq = cls.newProtocol(
+      ProtImportSequence,
+      inputSequenceName='nr_025000', inputSequence=1,
+      inputRawSequence=cls.NR_025000_SEQ)
+    cls.launchProtocol(protImportSeq)
+    return protImportSeq
+
+  @classmethod
+  def _runDefSeqROIs(cls, inProt, fullSeq):
+    windows = [(1, 120), (401, 520)]
+    inROIs = '\n'.join(
+      '{}) Residues: {{"index": "{}-{}", "residues": "{}", "desc": "None"}}'.format(
+        i, start, end, fullSeq[start - 1:end]
+      )
+      for i, (start, end) in enumerate(windows, 1)
+    )
+    protDefSeqROIs = cls.newProtocol(ProtDefineSeqROI, chooseInput=0, inROIs=inROIs)
+    protDefSeqROIs.inputSequence.set(inProt)
+    protDefSeqROIs.inputSequence.setExtended('outputSequence')
+
+    cls.launchProtocol(protDefSeqROIs)
+    return protDefSeqROIs
+
+  @classmethod
+  def _runBLASTnBatch(cls, protROIs):
+    dbIndex = cls.getDatabaseIndex(cls.dbName, fromNCBI=False)
+    protBLAST = cls.newProtocol(
+      ProtChemBLAST,
+      multipleQueries=True, seqType=1, localSearch=True, dbName=dbIndex,
+      word_size='11', gapopen='5', gapextend='2'
+      )
+    protBLAST.inputSequences.set(protROIs)
+    protBLAST.inputSequences.setExtended('outputROIs')
+
+    cls.launchProtocol(protBLAST)
+    return protBLAST
+
+  def testBLASTBatch(self):
+    dbIndex = self.getDatabaseIndex(self.dbName, fromNCBI=False)
+    if dbIndex == None:
+        self._createLocalDatabase()
+
+    protSeq = self._runImportSeq()
+    fullSeq = protSeq.outputSequence.getSequence()
+    protROIs = self._runDefSeqROIs(protSeq, fullSeq)
+    protBLAST = self._runBLASTnBatch(protROIs)
     self.assertIsNotNone(protBLAST.outputSequences)
 
 
