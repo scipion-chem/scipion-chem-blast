@@ -41,21 +41,37 @@ from blast.constants import *
 PROTEIN, NUCLEOTIDE = 0, 1
 
 class ProtChemBLAST(EMProtocol):
-    """Perform a BLAST search"""
+    """Perform a BLAST search.
+
+    AI Generated: batch mode support (multipleQueries) was added to accept a whole
+    SetOfSequences/SetOfSequenceROIs as query instead of a single Sequence, running one BLAST
+    call per input set (or per length tier if "Auto length-tiered E-value" is enabled), useful
+    for any workflow needing to BLAST many short queries against the same database without one
+    protocol run per query.
+    """
     _label = 'BLAST search'
     _devStatus = BETA
 
     def _defineParams(self, form):
         form.addSection(label='Input')
         group = form.addGroup('Input')
+        group.addParam('multipleQueries', BooleanParam, default=False,
+                      label='Batch multiple queries: ',
+                      help='Instead of a single Sequence, BLAST a whole SetOfSequences or '
+                           'SetOfSequenceROIs in one batch. All queries are grouped into one BLAST '
+                           'call, or several length-based tiers if "Auto length-tiered E-value" below '
+                           'is enabled.')
         group.addParam('inputSequence', PointerParam, pointerClass='Sequence',
-                      label='Input Sequence: ', allowsNull=False,
+                      label='Input Sequence: ', allowsNull=False, condition='not multipleQueries',
                       help="Sequence to be used as query")
+        group.addParam('inputSequences', PointerParam, pointerClass='SetOfSequences,SetOfSequenceROIs',
+                      label='Input Sequences: ', allowsNull=True, condition='multipleQueries',
+                      help="Set of sequences/ROIs to be used as query")
 
         group.addParam('seqType', EnumParam, default=1,
                       choices=['Protein', 'Nucleotide'], display=EnumParam.DISPLAY_HLIST,
                       label='Type of sequence: ')
-        
+
 
         group = form.addGroup('Database')
         group.addParam('localSearch', BooleanParam, default=False,
@@ -119,6 +135,28 @@ class ProtChemBLAST(EMProtocol):
                        help='Word size for wordfinder algorithm (length of best perfect match).\n'
                             'If empty, default will be used')
 
+        tGroup = form.addGroup('Batch length tiers', condition='multipleQueries')
+        tGroup.addParam('autoTieredEvalue', BooleanParam, default=False, condition='multipleQueries',
+                       label='Auto length-tiered E-value: ',
+                       help='Group queries into short/medium/long length tiers and BLAST each tier with '
+                            'its own E-value instead of the single one above. Standard BLAST statistics '
+                            'penalize short queries: a real short hit against a large database can be '
+                            'discarded as "not significant" under a strict default E-value, so a laxer '
+                            'threshold for short queries avoids losing real short matches.')
+        tGroup.addParam('shortMaxLen', IntParam, default=30, condition='multipleQueries and autoTieredEvalue',
+                       expertLevel=LEVEL_ADVANCED, label='Short query max length: ',
+                       help='Query length (aa/nt) up to which the "short" E-value tier is used.')
+        tGroup.addParam('mediumMaxLen', IntParam, default=100, condition='multipleQueries and autoTieredEvalue',
+                       expertLevel=LEVEL_ADVANCED, label='Medium query max length: ',
+                       help='Query length (aa/nt) up to which the "medium" E-value tier is used (above it, '
+                            '"long" is used).')
+        tGroup.addParam('evalueShort', StringParam, default='50', condition='multipleQueries and autoTieredEvalue',
+                       expertLevel=LEVEL_ADVANCED, label='E-value (short): ')
+        tGroup.addParam('evalueMedium', StringParam, default='0.1', condition='multipleQueries and autoTieredEvalue',
+                       expertLevel=LEVEL_ADVANCED, label='E-value (medium): ')
+        tGroup.addParam('evalueLong', StringParam, default='0.05', condition='multipleQueries and autoTieredEvalue',
+                       expertLevel=LEVEL_ADVANCED, label='E-value (long): ')
+
         group = form.addGroup('Scoring parameters')
         #Matrix only not show for blastn
         group.addParam('matrix', EnumParam, default=4,
@@ -151,33 +189,40 @@ class ProtChemBLAST(EMProtocol):
         self._insertFunctionStep('createOutputStep')
 
     def BLASTSearchStep(self):
-        if not self.localSearch.get():
-            if self.seqType.get() == PROTEIN:
-                dbName = self.getDBName(self.getEnumText('dbProtein'))
-            else:
-                dbName = self.getDBName(self.getEnumText('dbNucleotide'))
-        else:
-            dbName = self.getEnumText('dbName')
+        dbName = self.resolveDBName()
 
         outDir = self._getPath('sequences')
         if not os.path.exists(outDir):
             os.mkdir(outDir)
 
-        inSeq = self.inputSequence.get()
-        inFasta = os.path.abspath(self._getExtraPath(getSequenceFastaName(inSeq) + '.fasta'))
-        inSeq.exportToFile(inFasta)
+        if self.localSearch.get() and self.updateDB.get():
+            upArgs = ' --decompress {} -passive'.format(dbName)
+            Plugin.updateDatabase(self, upArgs)
 
-        outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+        if not self.multipleQueries.get():
+            inSeq = self.inputSequence.get()
+            inFasta = os.path.abspath(self._getExtraPath(getSequenceFastaName(inSeq) + '.fasta'))
+            inSeq.exportToFile(inFasta)
+            outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+            self.runBlastCall(inFasta, dbName, outFile)
+        else:
+            for tierIdx, (evalueOverride, tierQueries) in enumerate(self.getBatchTiers()):
+                if not tierQueries:
+                    continue
+                inFasta = self.getBatchTierFastaFile(tierIdx)
+                with open(inFasta, 'w') as fh:
+                    for qId, qSeq in tierQueries:
+                        fh.write('>{}\n{}\n'.format(qId, qSeq))
+                outFile = self.getBatchTierOutFile(tierIdx)
+                self.runBlastCall(inFasta, dbName, outFile, evalueOverride=evalueOverride)
 
+    def runBlastCall(self, inFasta, dbName, outFile, evalueOverride=None):
         args = '-query {} -db {} -out {} -outfmt 15'.format(inFasta, dbName, outFile)
         if self.maxEntries.get() > 0:
             args += ' -max_target_seqs {}'.format(self.maxEntries.get())
         if not self.localSearch.get():
             args += ' -remote'
-        elif self.localSearch.get() and self.updateDB.get():
-            upArgs = ' --decompress {} -passive'.format(dbName)
-            Plugin.updateDatabase(self, upArgs)
-        args += self.parseParameters()
+        args += self.parseParameters(evalueOverride=evalueOverride)
 
         subprogram = self.getSelectedBLASTProgram()
         if subprogram in ['blastx', 'tblastn', 'tblastx']:
@@ -194,25 +239,42 @@ class ProtChemBLAST(EMProtocol):
         Plugin.runBLAST(self, program, args, cwd=Plugin.getDatabasesDir())
 
     def createOutputStep(self):
-        seqDic = self.parseBLASTOutput()
         outSeqs = SetOfSequences.create(self._getPath())
-        inSeq = self.inputSequence.get()
 
-        #Adding target sequences
-        for seqId in seqDic:
-            if seqId != 'Query_1':
-                newSequence = seqDic[seqId]['sequence']
-                isAmino = self.seqType.get() == 0
-                newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
-                                  description=seqDic[seqId]['description'])
-                newSeq.evalue = String(str(seqDic[seqId]['evalue']))
-                newSeq.score = Float(seqDic[seqId]['score'])
-                outSeqs.append(newSeq)
-            else:
-                inSeq.setSequence(seqDic[seqId]['sequence'])
-                inSeq.evalue = Float(0.0)
-                inSeq.score = Float(0.0)
-                outSeqs.append(inSeq)
+        if not self.multipleQueries.get():
+            inSeq = self.inputSequence.get()
+            outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+            seqDic = self.parseBLASTOutput(outFile)
+
+            #Adding target sequences
+            for seqId in seqDic:
+                if seqId != 'Query_1':
+                    newSequence = seqDic[seqId]['sequence']
+                    isAmino = self.seqType.get() == 0
+                    newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
+                                      description=seqDic[seqId]['description'])
+                    newSeq.evalue = String(str(seqDic[seqId]['evalue']))
+                    newSeq.score = Float(seqDic[seqId]['score'])
+                    outSeqs.append(newSeq)
+                else:
+                    inSeq.setSequence(seqDic[seqId]['sequence'])
+                    inSeq.evalue = Float(0.0)
+                    inSeq.score = Float(0.0)
+                    outSeqs.append(inSeq)
+        else:
+            isAmino = self.seqType.get() == 0
+            for tierIdx, (_, tierQueries) in enumerate(self.getBatchTiers()):
+                if not tierQueries:
+                    continue
+                outFile = self.getBatchTierOutFile(tierIdx)
+                seqDic = self.parseBLASTOutput(outFile)
+                for seqId, info in seqDic.items():
+                    newSeq = Sequence(name=seqId, sequence=info['sequence'], id=seqId, isAminoacids=isAmino,
+                                      description=info['description'])
+                    newSeq.evalue = String(str(info['evalue']))
+                    newSeq.score = Float(info['score'])
+                    newSeq.queryId = String(info['query_title'])
+                    outSeqs.append(newSeq)
 
         outPath = self._getExtraPath('viewSequences.fasta')
         fastFastaExport(outSeqs, outPath)
@@ -233,6 +295,18 @@ class ProtChemBLAST(EMProtocol):
 
         if self.seqType.get() == 0 and int(self.word_size.get()) >= 8:
             errors.append('Word size must be < 8 when using blastp. Check the specified parameters.')
+
+        if not self.multipleQueries.get() and self.inputSequence.get() is None:
+            errors.append('You must provide an Input Sequence.')
+        if self.multipleQueries.get() and self.inputSequences.get() is None:
+            errors.append('You must provide an Input Sequences set.')
+
+        if self.multipleQueries.get() and self.autoTieredEvalue.get():
+            for attr in ('evalueShort', 'evalueMedium', 'evalueLong'):
+                try:
+                    float(getattr(self, attr).get())
+                except (TypeError, ValueError):
+                    errors.append('{} should be a number'.format(attr))
 
         return errors
 
@@ -290,6 +364,58 @@ class ProtChemBLAST(EMProtocol):
     def getDBName(self, dbText):
         return dbText.split('(')[-1].split(')')[0]
 
+    def resolveDBName(self):
+        if not self.localSearch.get():
+            if self.seqType.get() == PROTEIN:
+                return self.getDBName(self.getEnumText('dbProtein'))
+            else:
+                return self.getDBName(self.getEnumText('dbNucleotide'))
+        else:
+            return self.getEnumText('dbName')
+
+    def getBatchQueries(self):
+        '''Return a list of (queryId, sequence) tuples from inputSequences, which can be a
+        SetOfSequences or a SetOfSequenceROIs.'''
+        queries = []
+        for item in self.inputSequences.get():
+            item = item.clone()
+            if hasattr(item, 'getROISequence'):
+                queries.append((item.getROIId(), item.getROISequence()))
+            else:
+                queries.append((item.getSeqName() or item.getId(), item.getSequence()))
+        return queries
+
+    def getBatchTiers(self):
+        '''Group batch queries into (evalueOverride, queryList) tuples. With auto length-tiered
+        E-value disabled, returns a single tier using the general "evalue" parameter (evalueOverride
+        left as None). Otherwise splits queries into short/medium/long length tiers, each with its
+        own E-value.'''
+        queries = self.getBatchQueries()
+        if not self.autoTieredEvalue.get():
+            return [(None, queries)]
+
+        shortQ, mediumQ, longQ = [], [], []
+        shortMax, mediumMax = self.shortMaxLen.get(), self.mediumMaxLen.get()
+        for qId, qSeq in queries:
+            n = len(qSeq)
+            if n <= shortMax:
+                shortQ.append((qId, qSeq))
+            elif n <= mediumMax:
+                mediumQ.append((qId, qSeq))
+            else:
+                longQ.append((qId, qSeq))
+        return [
+            (self.evalueShort.get(), shortQ),
+            (self.evalueMedium.get(), mediumQ),
+            (self.evalueLong.get(), longQ),
+        ]
+
+    def getBatchTierFastaFile(self, tierIdx):
+        return os.path.abspath(self._getExtraPath('batch_tier{}.fasta'.format(tierIdx)))
+
+    def getBatchTierOutFile(self, tierIdx):
+        return os.path.abspath(self._getPath('batch_tier{}.txt'.format(tierIdx)))
+
     def checkMatchMismatchType(self):
         if self.seqType.get() == NUCLEOTIDE and self.blastNucleotide.get() == 0:
             #Blastn: match/mismatch penalties and gap penalties
@@ -318,11 +444,14 @@ class ProtChemBLAST(EMProtocol):
                 return self.getEnumText('blastNucleotide')
 
     #PARAMETERS PARSING
-    def parseParameters(self):
+    def parseParameters(self, evalueOverride=None):
         parArgs = ''
         for parName in self.getConditionalParameters():
-            if getattr(self, parName).get() != '':
-                parArgs += ' -{} {}'.format(parName, getattr(self, parName).get())
+            val = getattr(self, parName).get()
+            if parName == 'evalue' and evalueOverride is not None:
+                val = evalueOverride
+            if val != '':
+                parArgs += ' -{} {}'.format(parName, val)
 
         if self.checkMatchMismatchType() != MATCH:
             parArgs += ' -matrix {}'.format(self.getEnumText('matrix'))
@@ -338,22 +467,30 @@ class ProtChemBLAST(EMProtocol):
             return ['evalue', 'word_size']
 
 
-    def parseBLASTOutput(self):
-      inSeq = self.inputSequence.get()
-      outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+    def parseBLASTOutput(self, outFile):
+      '''Parse a BLAST JSON (-outfmt 15) output file. Iterates every query block in
+      BlastOutput2 (a multi-record query FASTA produces one block per query), not just the
+      first one, so this also supports batch/multi-query files.'''
       with open(outFile) as f:
         js = json.loads(f.read())
 
+      blocks = js['BlastOutput2']
+      multiQuery = len(blocks) > 1
       seqDic = {}
-      hits = js['BlastOutput2'][0]['report']['results']['search']['hits']
-      for h in hits:
-        accession, hId = h['description'][0]['accession'], h['description'][0]['id']
-        for hs in h['hsps']:
-          hf, qf, ql, ev, sc = hs['hit_from'], hs['query_from'], hs['query_to'], hs['evalue'], hs['score']
-          hseq = hs['hseq']
-          acc = f'{accession}_{hf}'
+      for block in blocks:
+        results = block['report']['results']['search']
+        queryTitle = results.get('query_title') or results.get('query_id', '')
+        hits = results['hits']
+        for h in hits:
+          accession, hId = h['description'][0]['accession'], h['description'][0]['id']
+          for hs in h['hsps']:
+            hf, qf, ql, ev, sc = hs['hit_from'], hs['query_from'], hs['query_to'], hs['evalue'], hs['score']
+            hseq = hs['hseq']
+            acc = f'{accession}_{hf}'
+            seqId = f'{queryTitle}::{acc}' if multiQuery else acc
 
-          seqDic[acc] = {'score': sc, 'evalue': ev, 'sequence': hseq.replace('-', ''), 'description': hId}
+            seqDic[seqId] = {'score': sc, 'evalue': ev, 'sequence': hseq.replace('-', ''),
+                              'description': hId, 'query_title': queryTitle}
 
       return seqDic
 
