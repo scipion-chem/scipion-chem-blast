@@ -27,12 +27,16 @@ import pyworkflow.tests as tests
 
 from pwem.protocols import ProtImportSequence
 
-from pwchem.protocols import ProtDefineSeqROI
+from pwchem.protocols import ProtDefineSeqROI, ProtChemImportVariants, ProtChemGenerateVariants
+from pwchem.tests.tests_imports import TestImportVariants
 
 from blast import Plugin
-from blast.constants import BLASTdbs
+from blast.constants import BLASTdbs, BLAST_HUMAN_DB_PATH
 
-from ..protocols import ProtChemBLAST, ProtChemBLASTDatabase, ProtChemNCBIDownload
+from ..protocols import (
+    ProtChemBLAST, ProtChemBLASTDatabase, ProtChemNCBIDownload,
+    ProtSelfToleranceFilter, ProtBLASTPanelConservation,
+)
 
 idsDic = {0: '{"ID": "P0DTC2"}\n{"ID": "P59594"}\n',
           1: '{"ID": "nr_025000"}\n{"ID": "nr_025001"}\n',
@@ -276,6 +280,114 @@ class TestBLASTBatch(BaseTest):
     protROIs = self._runDefSeqROIs(protSeq, fullSeq)
     protBLAST = self._runBLASTnBatch(protROIs)
     self.assertIsNotNone(protBLAST.outputSequences)
+
+
+class TestSelfToleranceFilter(BaseTest):
+  '''AI Generated. First 20 residues are the REAL human GAPDH N-terminus (P04406, already used
+  as a validated negative control in the standalone B-Cell-Epitope-Prediction repo) -- expected
+  to be discarded (real, exact 20aa human-proteome match). The last 12 residues are a real SARS-
+  CoV-2 spike fragment (P0DTC2 residues 70-81, empirically confirmed via TestIEDBCrossref to be a
+  clean, non-promiscuous match -- only a documented SARS-CoV-2 neutralizing epitope, no incidental
+  cross-reactivity noise) -- expected to survive. A shorter 7aa fragment was tried first and
+  discarded: real (not fabricated) BLASTp against the human proteome found an 85.7%% incidental
+  partial hit -- expected noise for a query that short against a whole proteome, not a bug, but it
+  invalidated that fixture as a clean "should survive" case.'''
+
+  GAPDH_NTERM = 'MGKVKVGVNGFGRIGRLVTR'  # P04406, residues 1-20
+  SPIKE_FRAGMENT = 'VSGTNGTKRFDN'  # P0DTC2, residues 70-81
+  COMBINED_SEQ = GAPDH_NTERM + SPIKE_FRAGMENT
+
+  @classmethod
+  def setUpClass(cls):
+    tests.setupTestProject(cls)
+
+  @classmethod
+  def _runImportSeq(cls):
+    protImportSeq = cls.newProtocol(
+      ProtImportSequence,
+      inputSequenceName='self_tolerance_fixture', inputSequence=1,
+      inputRawSequence=cls.COMBINED_SEQ)
+    cls.launchProtocol(protImportSeq)
+    return protImportSeq
+
+  @classmethod
+  def _runDefSeqROIs(cls, protSeq):
+    inROIs = (
+      '1) Residues: {{"index": "1-20", "residues": "{}", "desc": "None"}}\n'
+      '2) Residues: {{"index": "21-32", "residues": "{}", "desc": "None"}}'
+    ).format(cls.GAPDH_NTERM, cls.SPIKE_FRAGMENT)
+    protDefSeqROIs = cls.newProtocol(ProtDefineSeqROI, chooseInput=0, inROIs=inROIs)
+    protDefSeqROIs.inputSequence.set(protSeq)
+    protDefSeqROIs.inputSequence.setExtended('outputSequence')
+    cls.launchProtocol(protDefSeqROIs)
+    return protDefSeqROIs
+
+  @classmethod
+  def _runFilter(cls, protROIs):
+    protFilter = cls.newProtocol(ProtSelfToleranceFilter)
+    protFilter.inputROIs.set(protROIs)
+    protFilter.inputROIs.setExtended('outputROIs')
+    cls.launchProtocol(protFilter)
+    return protFilter
+
+  def testSelfToleranceFilter(self):
+    protSeq = self._runImportSeq()
+    protROIs = self._runDefSeqROIs(protSeq)
+    protFilter = self._runFilter(protROIs)
+    self.assertIsNotNone(protFilter.outputROIs)
+    survivors = [roi.getROISequence() for roi in protFilter.outputROIs]
+    self.assertNotIn(self.GAPDH_NTERM, survivors, 'real human GAPDH N-terminus should be rejected')
+    self.assertIn(self.SPIKE_FRAGMENT, survivors, 'real SARS-CoV-2 spike fragment should survive')
+
+
+class TestBLASTPanelConservation(TestImportVariants):
+  '''AI Generated. Panel = 3 real point-mutant variants of SARS-CoV-2 spike (P0DTC2) generated
+  by ProtChemGenerateVariants (Original/Alpha/T478K, same fixture as pwchem's own
+  TestGenerateSequences) -- none of those mutations fall inside residues 34-40, so the query ROI
+  (the same real spike fragment already used across this codebase) is expected to be conserved
+  across the whole panel.'''
+
+  SPIKE_FRAGMENT = 'RGVYYPD'  # P0DTC2, residues 34-40
+  MUTATIONS = '1) Variant: Original\n2) Variant: Alpha\n3) Mutations: T478K\n'
+
+  @classmethod
+  def setUpClass(cls):
+    tests.setupTestProject(cls)
+    cls._runImportVariants()
+    cls._waitOutput(cls.protImportVariants, 'outputVariants', sleepTime=5)
+
+  @classmethod
+  def _runGeneratePanel(cls):
+    protGenSeqs = cls.newProtocol(ProtChemGenerateVariants, toMutateList=cls.MUTATIONS)
+    protGenSeqs.inputSequenceVariants.set(cls.protImportVariants)
+    protGenSeqs.inputSequenceVariants.setExtended('outputVariants')
+    cls.launchProtocol(protGenSeqs)
+    return protGenSeqs
+
+  @classmethod
+  def _runDefSeqROI(cls):
+    inROIs = '1) Residues: {{"index": "34-40", "residues": "{}", "desc": "None"}}'.format(cls.SPIKE_FRAGMENT)
+    protDefSeqROIs = cls.newProtocol(ProtDefineSeqROI, chooseInput=1, inROIs=inROIs)
+    protDefSeqROIs.inputSequenceVariants.set(cls.protImportVariants)
+    protDefSeqROIs.inputSequenceVariants.setExtended('outputVariants')
+    cls.launchProtocol(protDefSeqROIs)
+    return protDefSeqROIs
+
+  def testBLASTPanelConservation(self):
+    protPanel = self._runGeneratePanel()
+    protROIs = self._runDefSeqROI()
+
+    protCons = self.newProtocol(ProtBLASTPanelConservation)
+    protCons.inputROIs.set(protROIs)
+    protCons.inputROIs.setExtended('outputROIs')
+    protCons.panelSequences.set(protPanel)
+    protCons.panelSequences.setExtended('outputSequences')
+    self.launchProtocol(protCons)
+
+    self.assertIsNotNone(protCons.outputROIs)
+    roi = list(protCons.outputROIs)[0]
+    self.assertEqual(roi._conservationPanelTotal.get(), 3)
+    self.assertGreaterEqual(roi._conservationPanelMatches.get(), 1)
 
 
 

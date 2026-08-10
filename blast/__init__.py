@@ -46,6 +46,12 @@ class Plugin(pwem.Plugin):
         """
         cls._defineEmVar(BLAST_DIC['home'], BLAST_DIC['name'] + '-' + BLAST_DIC['version'])
 
+        # Human proteome BLAST database used by ProtSelfToleranceFilter (self-tolerance
+        # re-check). Same treatment as pwchem's LANL_AB_ALL_PATH/IEDB_BCELL_REFERENCE_PATH:
+        # a manually-built local resource the user points to, not auto-generated (building a
+        # human-proteome database is a heavyweight one-time step outside this protocol's scope).
+        cls._defineVar(BLAST_HUMAN_DB_PATH, '')
+
     @classmethod
     def defineBinaries(cls, env):
         cls.addBLASTPackage(env)
