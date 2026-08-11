@@ -29,10 +29,10 @@ FINAL candidate's own length, rather than at the length of whatever
 upstream parent region it was selected from.
 
 Ported from the standalone B-Cell-Epitope-Prediction repo's
-src/engines/blast_engine.py::filter_self_tolerant (Fase 4-bis, Carmen
-Elena Gomez feedback 2026-07-30): an earlier BLASTp self-tolerance check
-run against a longer PARENT region (e.g. a fused B-cell union region, up
-to ~20-70aa) can miss a short (8-15aa) dangerous human-homologous motif
+src/engines/blast_engine.py::filter_self_tolerant (Fase 4-bis): an earlier
+BLASTp self-tolerance check run against a longer PARENT region (e.g. a
+fused B-cell union region, up to ~20-70aa) can miss a short (8-15aa)
+dangerous human-homologous motif
 buried inside it, because the minimum-query-coverage filter is computed
 against the parent's full length, not the short motif's own length. This
 protocol re-runs the same BLASTp self-tolerance check on the actual FINAL
