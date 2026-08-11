@@ -1,62 +1,41 @@
-=======================
-BLAST plugin
-=======================
+================================
+BLAST Scipion plugin
+================================
 
-**Documentation under development, sorry for the inconvenience**
+Scipion framework plugin wrapping NCBI BLAST+ (2.12.0) for local sequence
+similarity search, plus a set of protocols specific to the
+B-Cell-Epitope-Prediction pipeline built on top of it:
 
-This is a **Scipion** plugin that offers different **blast tools**.
+- ``ProtChemBLAST``: generic local BLAST search.
+- ``ProtChemBLASTDatabase``: local BLAST database construction.
+- ``ProtChemNCBIDownload``: reference sequence retrieval from NCBI.
+- ``ProtSelfToleranceFilter``: screens candidates against a local human
+  proteome BLAST database (self-tolerance check), evaluated at the final
+  candidate's own length rather than at its upstream parent region's.
+- ``ProtBLASTPanelConservation``: scores each input ROI's conservation
+  against a user-provided reference panel of strain/clade/variant
+  sequences of the same pathogen under analysis.
 
-Therefore, this plugin allows to use programs from the blast software suite
-within the Scipion framework.
+BLAST+ itself is installed automatically (downloaded directly from the
+NCBI FTP release). ``ProtSelfToleranceFilter`` additionally requires a
+manually-built local human proteome BLAST database, pointed to via
+``BLAST_HUMAN_DB_PATH`` in ``scipion.conf`` (building a full human-proteome
+database is a heavyweight one-time step outside this protocol's own
+scope).
 
-Full documentation to this plugin can be found in the `official documentation page <https://scipion-chem.github.io/docs/plugins/blast/index.html>`_.
-
-==========================
+===================
 Install this plugin
-==========================
+===================
 
-You will need to use `Scipion3 <https://scipion-em.github.io/docs/docs/scipion
--modes/how-to-install.html>`_ to run these protocols.
-
-
-1. **Install the plugin in Scipion**
-
-BLAST+ is installed automatically by scipion.
-
-- **Install the stable version (Not available yet)**
-
-    Through the plugin manager GUI by launching Scipion and following **Configuration** >> **Plugins**
-
-    or
+**Developer's version**
 
 .. code-block::
 
-    scipion3 installp -p scipion-chem-blast
+            git clone https://github.com/Lvera-code/scipion-chem-blast.git
+            cd scipion-chem-blast
+            scipion3 installp -p . --devel
+            scipion3 installb blast
 
+.. code-block::
 
-- **Developer's version**
-
-    1. **Download repository**:
-
-    .. code-block::
-
-        git clone https://github.com/scipion-chem/scipion-chem-blast.git
-
-    2. **Switch to the desired branch** (master or devel):
-
-    Scipion-chem-blast is constantly under development and including new features.
-    If you want a relatively older an more stable version, use master branch (default).
-    If you want the latest changes and developments, user devel branch.
-
-    .. code-block::
-
-                cd scipion-chem-blast
-                git checkout devel
-
-    3. **Install**:
-
-    .. code-block::
-
-        scipion3 installp -p path_to_scipion-chem-blast --devel
-
-
+            scipion3 tests blast.tests
