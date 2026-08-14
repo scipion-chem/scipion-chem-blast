@@ -28,22 +28,22 @@ This protocol re-checks self-tolerance (human-proteome homology) at the
 FINAL candidate's own length, rather than at the length of whatever
 upstream parent region it was selected from.
 
-Ported from the standalone B-Cell-Epitope-Prediction repo's
-src/engines/blast_engine.py::filter_self_tolerant (Fase 4-bis): an earlier
-BLASTp self-tolerance check run against a longer PARENT region (e.g. a
-fused B-cell union region, up to ~20-70aa) can miss a short (8-15aa)
-dangerous human-homologous motif
-buried inside it, because the minimum-query-coverage filter is computed
-against the parent's full length, not the short motif's own length. This
-protocol re-runs the same BLASTp self-tolerance check on the actual FINAL
+Rationale: an earlier BLASTp self-tolerance check run against a longer
+PARENT region (e.g. a fused B-cell union region, up to ~20-70aa) can miss
+a short (8-15aa) dangerous human-homologous motif buried inside it,
+because the minimum-query-coverage filter is computed against the
+parent's full length, not the short motif's own length. This protocol
+re-runs the same BLASTp self-tolerance check on the actual FINAL
 candidate sequence -- coverage is now measured against ITS OWN length, at
 the scale where it actually matters.
 
 Reusable across any candidate class (B-cell/HTL/CTL): unlike the crossref
 protocols (ProtLANLCATNAPCrossref/ProtIEDBCrossref), which only annotate,
 this one FILTERS (drops candidates whose max human-proteome identity
-exceeds the threshold) -- same behavior as filter_self_tolerant, which is
-called at three separate pipeline sites in the standalone script.
+exceeds the threshold). Meant to be inserted at more than one point of a
+workflow -- once on the longer parent regions, again on the final
+per-class candidate sequences -- to close the coverage gap described
+above.
 """
 
 import os
@@ -79,7 +79,8 @@ class ProtSelfToleranceFilter(EMProtocol):
     protocol filters, it does not just annotate), each kept ROI annotated
     with '_maxHumanPident' (float, 0.0 if no qualifying hit) and
     '_blastVerdict' (str, always 'Segura' for a surviving ROI -- kept for
-    traceability/consistency with the standalone script's own column).
+    traceability, consistent with the verdict column of other BLAST-based
+    protocols in this plugin).
     Full per-candidate detail (survivors and rejects alike) persisted to
     'extra/self_tolerance_check.csv'.
     """
