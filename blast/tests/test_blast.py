@@ -283,8 +283,7 @@ class TestBLASTBatch(BaseTest):
 
 
 class TestSelfToleranceFilter(BaseTest):
-  '''AI Generated. First 20 residues are the REAL human GAPDH N-terminus (P04406, already used
-  as a validated negative control in the standalone B-Cell-Epitope-Prediction repo) -- expected
+  '''AI Generated. First 20 residues are the REAL human GAPDH N-terminus (P04406) -- expected
   to be discarded (real, exact 20aa human-proteome match). The last 12 residues are a real SARS-
   CoV-2 spike fragment (P0DTC2 residues 70-81, empirically confirmed via TestIEDBCrossref to be a
   clean, non-promiscuous match -- only a documented SARS-CoV-2 neutralizing epitope, no incidental

@@ -25,11 +25,9 @@
 
 """
 Shared batched-blastp-by-length-tier logic, used by both
-ProtSelfToleranceFilter and ProtBLASTPanelConservation: ported from the
-standalone B-Cell-Epitope-Prediction repo's src/engines/blast_engine.py
-(_select_task/_select_evalue/_run_blastp_batch), which itself is reused
-as-is (not duplicated) by that repo's own conservation_engine.py -- same
-principle applied here, one copy shared by both protocols instead of two.
+ProtSelfToleranceFilter and ProtBLASTPanelConservation: one copy shared by
+both protocols instead of two, since they need the exact same length-tier
+task/E-value selection.
 
 BLASTp's statistics depend heavily on query length: a strict default
 E-value discards identical short-peptide hits as "not significant"; a lax

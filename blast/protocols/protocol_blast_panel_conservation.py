@@ -28,8 +28,7 @@ This protocol annotates each input ROI with how conserved it is across a
 user-provided reference panel of strain/clade/variant sequences of the
 SAME pathogen under analysis.
 
-Ported from the standalone B-Cell-Epitope-Prediction repo's
-src/engines/conservation_engine.py (Fase 6b): a poorly-conserved epitope
+Rationale: a poorly-conserved epitope
 protects only against the exact strain it was designed against;
 prioritizing conserved epitopes broadens
 coverage and puts more evolutionary pressure on the pathogen (conserved
@@ -130,8 +129,7 @@ class ProtBLASTPanelConservation(EMProtocol):
 
     def indexPanelStep(self):
         # ABSOLUTE path: runBLAST's runJob is invoked with cwd=cacheDir below, so a relative
-        # path here would resolve against the WRONG directory (same class of bug already found
-        # and fixed in AlgPred2/ToxinPred2/IApred in the standalone project).
+        # path here would resolve against the WRONG directory.
         panelFasta = os.path.abspath(self._getExtraPath('panel.fasta'))
         fastFastaExport(self.panelSequences.get(), panelFasta)
 
