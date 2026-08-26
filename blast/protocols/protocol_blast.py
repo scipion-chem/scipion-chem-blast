@@ -39,6 +39,7 @@ from blast.constants import *
 
 
 PROTEIN, NUCLEOTIDE = 0, 1
+TIERED_EVALUE_CONDITION = 'multipleQueries and autoTieredEvalue'
 
 class ProtChemBLAST(EMProtocol):
     """Perform a BLAST search.
@@ -143,18 +144,18 @@ class ProtChemBLAST(EMProtocol):
                             'penalize short queries: a real short hit against a large database can be '
                             'discarded as "not significant" under a strict default E-value, so a laxer '
                             'threshold for short queries avoids losing real short matches.')
-        tGroup.addParam('shortMaxLen', IntParam, default=30, condition='multipleQueries and autoTieredEvalue',
+        tGroup.addParam('shortMaxLen', IntParam, default=30, condition=TIERED_EVALUE_CONDITION,
                        expertLevel=LEVEL_ADVANCED, label='Short query max length: ',
                        help='Query length (aa/nt) up to which the "short" E-value tier is used.')
-        tGroup.addParam('mediumMaxLen', IntParam, default=100, condition='multipleQueries and autoTieredEvalue',
+        tGroup.addParam('mediumMaxLen', IntParam, default=100, condition=TIERED_EVALUE_CONDITION,
                        expertLevel=LEVEL_ADVANCED, label='Medium query max length: ',
                        help='Query length (aa/nt) up to which the "medium" E-value tier is used (above it, '
                             '"long" is used).')
-        tGroup.addParam('evalueShort', StringParam, default='50', condition='multipleQueries and autoTieredEvalue',
+        tGroup.addParam('evalueShort', StringParam, default='50', condition=TIERED_EVALUE_CONDITION,
                        expertLevel=LEVEL_ADVANCED, label='E-value (short): ')
-        tGroup.addParam('evalueMedium', StringParam, default='0.1', condition='multipleQueries and autoTieredEvalue',
+        tGroup.addParam('evalueMedium', StringParam, default='0.1', condition=TIERED_EVALUE_CONDITION,
                        expertLevel=LEVEL_ADVANCED, label='E-value (medium): ')
-        tGroup.addParam('evalueLong', StringParam, default='0.05', condition='multipleQueries and autoTieredEvalue',
+        tGroup.addParam('evalueLong', StringParam, default='0.05', condition=TIERED_EVALUE_CONDITION,
                        expertLevel=LEVEL_ADVANCED, label='E-value (long): ')
 
         group = form.addGroup('Scoring parameters')
@@ -242,39 +243,9 @@ class ProtChemBLAST(EMProtocol):
         outSeqs = SetOfSequences.create(self._getPath())
 
         if not self.multipleQueries.get():
-            inSeq = self.inputSequence.get()
-            outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
-            seqDic = self.parseBLASTOutput(outFile)
-
-            #Adding target sequences
-            for seqId in seqDic:
-                if seqId != 'Query_1':
-                    newSequence = seqDic[seqId]['sequence']
-                    isAmino = self.seqType.get() == 0
-                    newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
-                                      description=seqDic[seqId]['description'])
-                    newSeq.evalue = String(str(seqDic[seqId]['evalue']))
-                    newSeq.score = Float(seqDic[seqId]['score'])
-                    outSeqs.append(newSeq)
-                else:
-                    inSeq.setSequence(seqDic[seqId]['sequence'])
-                    inSeq.evalue = Float(0.0)
-                    inSeq.score = Float(0.0)
-                    outSeqs.append(inSeq)
+            self._appendSingleQueryOutput(outSeqs)
         else:
-            isAmino = self.seqType.get() == 0
-            for tierIdx, (_, tierQueries) in enumerate(self.getBatchTiers()):
-                if not tierQueries:
-                    continue
-                outFile = self.getBatchTierOutFile(tierIdx)
-                seqDic = self.parseBLASTOutput(outFile)
-                for seqId, info in seqDic.items():
-                    newSeq = Sequence(name=seqId, sequence=info['sequence'], id=seqId, isAminoacids=isAmino,
-                                      description=info['description'])
-                    newSeq.evalue = String(str(info['evalue']))
-                    newSeq.score = Float(info['score'])
-                    newSeq.queryId = String(info['query_title'])
-                    outSeqs.append(newSeq)
+            self._appendBatchOutput(outSeqs)
 
         outPath = self._getExtraPath('viewSequences.fasta')
         fastFastaExport(outSeqs, outPath)
@@ -282,16 +253,45 @@ class ProtChemBLAST(EMProtocol):
 
         self._defineOutputs(outputSequences=outSeqs)
 
+    def _appendSingleQueryOutput(self, outSeqs):
+        inSeq = self.inputSequence.get()
+        outFile = os.path.abspath(self._getPath(getSequenceFastaName(inSeq) + '.txt'))
+        seqDic = self.parseBLASTOutput(outFile)
+        isAmino = self.seqType.get() == 0
+
+        #Adding target sequences
+        for seqId in seqDic:
+            if seqId != 'Query_1':
+                newSequence = seqDic[seqId]['sequence']
+                newSeq = Sequence(name=seqId, sequence=newSequence, id=seqId, isAminoacids=isAmino,
+                                  description=seqDic[seqId]['description'])
+                newSeq.evalue = String(str(seqDic[seqId]['evalue']))
+                newSeq.score = Float(seqDic[seqId]['score'])
+                outSeqs.append(newSeq)
+            else:
+                inSeq.setSequence(seqDic[seqId]['sequence'])
+                inSeq.evalue = Float(0.0)
+                inSeq.score = Float(0.0)
+                outSeqs.append(inSeq)
+
+    def _appendBatchOutput(self, outSeqs):
+        isAmino = self.seqType.get() == 0
+        for tierIdx, (_, tierQueries) in enumerate(self.getBatchTiers()):
+            if not tierQueries:
+                continue
+            outFile = self.getBatchTierOutFile(tierIdx)
+            seqDic = self.parseBLASTOutput(outFile)
+            for seqId, info in seqDic.items():
+                newSeq = Sequence(name=seqId, sequence=info['sequence'], id=seqId, isAminoacids=isAmino,
+                                  description=info['description'])
+                newSeq.evalue = String(str(info['evalue']))
+                newSeq.score = Float(info['score'])
+                newSeq.queryId = String(info['query_title'])
+                outSeqs.append(newSeq)
+
 
     def _validate(self):
-        errors = []
-        #Check numerical parameters
-        for attr in self.getConditionalParameters():
-            try:
-                if getattr(self, attr).get() != '':
-                    float(getattr(self, attr).get())
-            except:
-                errors.append('{} should be a number or empty'.format(attr))
+        errors = self._validateConditionalParameters()
 
         if self.seqType.get() == 0 and int(self.word_size.get()) >= 8:
             errors.append('Word size must be < 8 when using blastp. Check the specified parameters.')
@@ -302,12 +302,28 @@ class ProtChemBLAST(EMProtocol):
             errors.append('You must provide an Input Sequences set.')
 
         if self.multipleQueries.get() and self.autoTieredEvalue.get():
-            for attr in ('evalueShort', 'evalueMedium', 'evalueLong'):
-                try:
-                    float(getattr(self, attr).get())
-                except (TypeError, ValueError):
-                    errors.append('{} should be a number'.format(attr))
+            errors += self._validateTieredEvalue()
 
+        return errors
+
+    def _validateConditionalParameters(self):
+        errors = []
+        #Check numerical parameters
+        for attr in self.getConditionalParameters():
+            try:
+                if getattr(self, attr).get() != '':
+                    float(getattr(self, attr).get())
+            except:
+                errors.append('{} should be a number or empty'.format(attr))
+        return errors
+
+    def _validateTieredEvalue(self):
+        errors = []
+        for attr in ('evalueShort', 'evalueMedium', 'evalueLong'):
+            try:
+                float(getattr(self, attr).get())
+            except (TypeError, ValueError):
+                errors.append('{} should be a number'.format(attr))
         return errors
 
     def _warnings(self):

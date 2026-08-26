@@ -54,25 +54,25 @@ EVALUE_MEDIUM = 0.1    # SHORT_PEPTIDE_MAX_LEN+1 .. MEDIUM_PEPTIDE_MAX_LEN aa
 EVALUE_LONG = 0.05     # > MEDIUM_PEPTIDE_MAX_LEN aa (strict: avoids irrelevant-homology noise)
 
 
-def select_task(sequence_length: int, short_max_len: int = SHORT_PEPTIDE_MAX_LEN) -> str:
-    """'blastp-short' if sequence_length <= short_max_len, else 'blastp'."""
-    return 'blastp-short' if sequence_length <= short_max_len else 'blastp'
+def selectTask(sequenceLength: int, shortMaxLen: int = SHORT_PEPTIDE_MAX_LEN) -> str:
+    """'blastp-short' if sequenceLength <= shortMaxLen, else 'blastp'."""
+    return 'blastp-short' if sequenceLength <= shortMaxLen else 'blastp'
 
 
-def select_evalue(
-    sequence_length: int,
-    short_max_len: int = SHORT_PEPTIDE_MAX_LEN,
-    medium_max_len: int = MEDIUM_PEPTIDE_MAX_LEN,
+def selectEvalue(
+    sequenceLength: int,
+    shortMaxLen: int = SHORT_PEPTIDE_MAX_LEN,
+    mediumMaxLen: int = MEDIUM_PEPTIDE_MAX_LEN,
 ) -> float:
     """E-value tier by peptide length (see module docstring)."""
-    if sequence_length <= short_max_len:
+    if sequenceLength <= shortMaxLen:
         return EVALUE_SHORT
-    if sequence_length <= medium_max_len:
+    if sequenceLength <= mediumMaxLen:
         return EVALUE_MEDIUM
     return EVALUE_LONG
 
 
-def run_blastp_batch_via_runjob(protocol, plugin, records: List[Tuple[int, str]], task: str, db: str, evalue: float) -> pd.DataFrame:
+def runBlastpBatchViaRunjob(protocol, plugin, records: List[Tuple[int, str]], task: str, db: str, evalue: float) -> pd.DataFrame:
     """Runs one length-tier batch of 'records' (idx, sequence) through blastp via the plugin's runBLAST/runJob.
 
     Args:
@@ -91,26 +91,26 @@ def run_blastp_batch_via_runjob(protocol, plugin, records: List[Tuple[int, str]]
         return pd.DataFrame(columns=OUTFMT6_COLUMNS)
 
     with tempfile.TemporaryDirectory(prefix=f'blastp_{task}_') as tmp:
-        tmp_dir = Path(tmp)
-        query_path = tmp_dir / 'query.fasta'
-        out_path = tmp_dir / 'hits.tsv'
+        tmpDir = Path(tmp)
+        queryPath = tmpDir / 'query.fasta'
+        outPath = tmpDir / 'hits.tsv'
 
-        with query_path.open('w', encoding='utf-8') as fh:
+        with queryPath.open('w', encoding='utf-8') as fh:
             for idx, seq in records:
                 fh.write(f'>peptide_{idx}\n{seq}\n')
 
         args = (
-            f'-task {task} -query {query_path} -db {db} -outfmt 6 '
-            f'-evalue {evalue} -out {out_path}'
+            f'-task {task} -query {queryPath} -db {db} -outfmt 6 '
+            f'-evalue {evalue} -out {outPath}'
         )
         plugin.runBLAST(protocol, 'blastp', args)
 
-        if not out_path.is_file() or out_path.stat().st_size == 0:
+        if not outPath.is_file() or outPath.stat().st_size == 0:
             return pd.DataFrame(columns=OUTFMT6_COLUMNS)
-        return pd.read_csv(out_path, sep='\t', names=OUTFMT6_COLUMNS)
+        return pd.read_csv(outPath, sep='\t', names=OUTFMT6_COLUMNS)
 
 
-def run_batched_blastp(protocol, plugin, sequences: pd.Series, db: str) -> pd.DataFrame:
+def runBatchedBlastp(protocol, plugin, sequences: pd.Series, db: str) -> pd.DataFrame:
     """Runs 'sequences' (indexed by their original DataFrame index) through blastp, tiered by length.
 
     Returns:
@@ -120,22 +120,22 @@ def run_batched_blastp(protocol, plugin, sequences: pd.Series, db: str) -> pd.Da
     if sequences.empty:
         return pd.DataFrame(columns=OUTFMT6_COLUMNS)
 
-    tasks = sequences.str.len().apply(select_task)
-    evalues = sequences.str.len().apply(select_evalue)
+    tasks = sequences.str.len().apply(selectTask)
+    evalues = sequences.str.len().apply(selectEvalue)
 
     frames = []
     tiers = pd.DataFrame({'task': tasks, 'evalue': evalues}).drop_duplicates()
     for task, evalue in tiers.itertuples(index=False):
-        tier_mask = (tasks == task) & (evalues == evalue)
-        records = list(zip(sequences.index[tier_mask], sequences[tier_mask]))
-        frames.append(run_blastp_batch_via_runjob(protocol, plugin, records, task, db, evalue))
+        tierMask = (tasks == task) & (evalues == evalue)
+        records = list(zip(sequences.index[tierMask], sequences[tierMask]))
+        frames.append(runBlastpBatchViaRunjob(protocol, plugin, records, task, db, evalue))
 
-    non_empty = [f for f in frames if not f.empty]
-    return pd.concat(non_empty, ignore_index=True) if non_empty else pd.DataFrame(columns=OUTFMT6_COLUMNS)
+    nonEmpty = [f for f in frames if not f.empty]
+    return pd.concat(nonEmpty, ignore_index=True) if nonEmpty else pd.DataFrame(columns=OUTFMT6_COLUMNS)
 
 
-def max_identity_by_query(hits: pd.DataFrame, query_lengths: pd.Series, min_query_coverage: float) -> pd.Series:
-    """Max %identity per query among hits covering >= min_query_coverage of the query's own length.
+def maxIdentityByQuery(hits: pd.DataFrame, queryLengths: pd.Series, minQueryCoverage: float) -> pd.Series:
+    """Max %identity per query among hits covering >= minQueryCoverage of the query's own length.
 
     Without the coverage filter, a tiny 5-6aa fragment 100% identical by
     pure chance against a large database would reject peptides that don't
@@ -145,17 +145,17 @@ def max_identity_by_query(hits: pd.DataFrame, query_lengths: pd.Series, min_quer
     if hits.empty:
         return pd.Series(dtype=float)
 
-    hit_query_idx = hits['qseqid'].str.replace('peptide_', '', regex=False).astype(int)
-    hit_query_length = hit_query_idx.map(query_lengths)
-    coverage = hits['length'] / hit_query_length
-    covered = hits[coverage >= min_query_coverage]
+    hitQueryIdx = hits['qseqid'].str.replace('peptide_', '', regex=False).astype(int)
+    hitQueryLength = hitQueryIdx.map(queryLengths)
+    coverage = hits['length'] / hitQueryLength
+    covered = hits[coverage >= minQueryCoverage]
 
     if covered.empty:
         return pd.Series(dtype=float)
     return covered.groupby('qseqid')['pident'].max()
 
 
-def panel_breadth_by_query(hits: pd.DataFrame, query_lengths: pd.Series, identity_threshold: float, min_query_coverage: float) -> pd.Series:
+def panelBreadthByQuery(hits: pd.DataFrame, queryLengths: pd.Series, identityThreshold: float, minQueryCoverage: float) -> pd.Series:
     """Count of DISTINCT panel sequences each query matches above the thresholds (breadth, not best-hit).
 
     Ported from conservation_engine._panel_breadth_by_query: measures how
@@ -166,10 +166,10 @@ def panel_breadth_by_query(hits: pd.DataFrame, query_lengths: pd.Series, identit
     if hits.empty:
         return pd.Series(dtype=int)
 
-    hit_query_idx = hits['qseqid'].str.replace('peptide_', '', regex=False).astype(int)
-    hit_query_length = hit_query_idx.map(query_lengths)
-    coverage = hits['length'] / hit_query_length
-    qualifying = hits[(coverage >= min_query_coverage) & (hits['pident'] >= identity_threshold)]
+    hitQueryIdx = hits['qseqid'].str.replace('peptide_', '', regex=False).astype(int)
+    hitQueryLength = hitQueryIdx.map(queryLengths)
+    coverage = hits['length'] / hitQueryLength
+    qualifying = hits[(coverage >= minQueryCoverage) & (hits['pident'] >= identityThreshold)]
 
     if qualifying.empty:
         return pd.Series(dtype=int)

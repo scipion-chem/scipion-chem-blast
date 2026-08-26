@@ -63,7 +63,7 @@ from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 
 from blast import Plugin as blastPlugin
-from blast.utils.blastp_batch import panel_breadth_by_query, run_batched_blastp
+from blast.utils.blastp_batch import panelBreadthByQuery, runBatchedBlastp
 
 DEFAULT_IDENTITY_THRESHOLD = 90.0
 DEFAULT_MIN_QUERY_COVERAGE = 0.9
@@ -152,8 +152,8 @@ class ProtBLASTPanelConservation(EMProtocol):
         if sequences.empty:
             result = result.assign(n_panel_matches=[], n_panel_total=[], conservation_pct=[])
         else:
-            hits = run_batched_blastp(self, blastPlugin, sequences, self._dbPrefix)
-            breadth = panel_breadth_by_query(
+            hits = runBatchedBlastp(self, blastPlugin, sequences, self._dbPrefix)
+            breadth = panelBreadthByQuery(
                 hits, sequences.str.len(), self.identityThreshold.get(), self.minQueryCoverage.get(),
             )
             result['n_panel_matches'] = [int(breadth.get(f'peptide_{idx}', 0)) for idx in sequences.index]

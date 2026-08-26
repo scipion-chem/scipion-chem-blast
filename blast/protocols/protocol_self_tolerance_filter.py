@@ -59,7 +59,7 @@ from pyworkflow.utils import Message
 
 from blast import Plugin as blastPlugin
 from blast.constants import BLAST_HUMAN_DB_PATH
-from blast.utils.blastp_batch import max_identity_by_query, run_batched_blastp
+from blast.utils.blastp_batch import maxIdentityByQuery, runBatchedBlastp
 
 DEFAULT_IDENTITY_THRESHOLD = 75.0
 
@@ -129,12 +129,12 @@ class ProtSelfToleranceFilter(EMProtocol):
             pd.DataFrame(columns=['sequence', 'max_pident', 'status']).to_csv(self._getResultPath(), index=False)
             return
 
-        hits = run_batched_blastp(self, blastPlugin, sequences, self._getDbPath())
-        max_pident = max_identity_by_query(hits, sequences.str.len(), min_query_coverage=0.9)
+        hits = runBatchedBlastp(self, blastPlugin, sequences, self._getDbPath())
+        maxPident = maxIdentityByQuery(hits, sequences.str.len(), minQueryCoverage=0.9)
 
         threshold = self.identityThreshold.get()
         result = pd.DataFrame({'sequence': sequences})
-        result['max_pident'] = [float(max_pident.get(f'peptide_{idx}', 0.0)) for idx in sequences.index]
+        result['max_pident'] = [float(maxPident.get(f'peptide_{idx}', 0.0)) for idx in sequences.index]
         result['status'] = result['max_pident'].apply(lambda p: 'Autoinmunidad' if p > threshold else 'Segura')
         result.to_csv(self._getResultPath(), index=False)
 
