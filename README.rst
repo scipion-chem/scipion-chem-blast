@@ -34,7 +34,6 @@ Install this plugin
             git clone https://github.com/Lvera-code/scipion-chem-blast.git
             cd scipion-chem-blast
             scipion3 installp -p . --devel
-            scipion3 installb blast
 
 .. code-block::
 
