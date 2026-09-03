@@ -28,6 +28,9 @@
 
 #BLAST PROTOCOL
 MATCH, MATRIX, NOGAP = 0, 1, 2
+
+# ProtSelfToleranceFilter / ProtBLASTPanelConservation config var (see Plugin._defineVariables)
+BLAST_HUMAN_DB_PATH = 'BLAST_HUMAN_DB_PATH'
 dbProtChoices = ['Non-redundant (nr)', 'RefSeq Select (refseq_select_prot)', 'NCBI_Reference proteins (refseq_protein)',
                  'UniProtKB/Swiss-Prot (swissprot)', 'Patented protein (pataa)', 'Protein Data Bank (pdb)',
                  'Metagenomic (env_nr)', 'Transcriptome Shotgun Assembly (tsa_nr)',
